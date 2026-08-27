@@ -2,7 +2,7 @@
 
 AI Gesture Mouse is an AI-powered touchless mouse system
 that allows users to control the computer using hand gestures
-captured through a webcam.
+captured through a computer webcam.
 
 ## Problem
 
