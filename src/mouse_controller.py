@@ -7,7 +7,12 @@ deadzone filtering, and OS-level mouse event automation via PyAutoGUI.
 
 from typing import Tuple, Optional
 import time
-import numpy as np
+import math
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
 
 try:
     import pyautogui
@@ -79,7 +84,7 @@ class MouseController:
         target_y = norm_y * self.screen_h
 
         # Deadzone filter
-        dist = np.hypot(target_x - self.prev_x, target_y - self.prev_y)
+        dist = math.hypot(target_x - self.prev_x, target_y - self.prev_y)
         if dist < self.deadzone:
             target_x = self.prev_x
             target_y = self.prev_y

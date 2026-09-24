@@ -6,8 +6,17 @@ Utilizes Google MediaPipe Hands and OpenCV to track 21 3D hand landmarks in real
 
 from typing import List, Tuple, Optional, Dict, Any
 import math
-import cv2
-import numpy as np
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    cv2 = None
+    CV2_AVAILABLE = False
+
+try:
+    import numpy as np
+except ImportError:
+    np = None
 
 try:
     import mediapipe as mp
@@ -78,11 +87,11 @@ class HandDetector:
             )
             self.mp_draw = mp.solutions.drawing_utils
 
-    def find_hands(self, img: np.ndarray, draw: bool = True) -> np.ndarray:
+    def find_hands(self, img: Any, draw: bool = True) -> Any:
         """
         Processes image frame to detect hands and draw landmark skeleton.
         """
-        if not MEDIAPIPE_AVAILABLE or self.hands is None:
+        if not MEDIAPIPE_AVAILABLE or self.hands is None or cv2 is None:
             return img
 
         img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -102,7 +111,7 @@ class HandDetector:
 
     def find_positions(
         self,
-        img: np.ndarray,
+        img: Any,
         hand_no: int = 0
     ) -> List[List[int]]:
         """
@@ -163,10 +172,10 @@ class HandDetector:
         self,
         p1: int,
         p2: int,
-        img: Optional[np.ndarray] = None,
+        img: Optional[Any] = None,
         landmarks: Optional[List[List[int]]] = None,
         draw: bool = True
-    ) -> Tuple[float, List[int], Optional[np.ndarray]]:
+    ) -> Tuple[float, List[int], Optional[Any]]:
         """
         Calculates Euclidean distance between two landmarks.
         Returns (distance, [x1, y1, x2, y2, cx, cy], img)
@@ -181,7 +190,7 @@ class HandDetector:
 
         length = math.hypot(x2 - x1, y2 - y1)
 
-        if img is not None and draw:
+        if img is not None and draw and cv2 is not None:
             cv2.circle(img, (x1, y1), 8, (255, 0, 255), cv2.FILLED)
             cv2.circle(img, (x2, y2), 8, (255, 0, 255), cv2.FILLED)
             cv2.line(img, (x1, y1), (x2, y2), (255, 0, 255), 2)
