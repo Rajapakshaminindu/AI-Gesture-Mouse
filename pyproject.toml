@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-gesture-mouse"
+version = "1.0.0"
+description = "AI-powered touchless mouse system using MediaPipe hand tracking and OpenCV"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [
+    { name = "Team NEW MOON", email = "rajapakshaminidu@gmail.com" }
+]
+keywords = [
+    "computer-vision",
+    "gesture-control",
+    "touchless-mouse",
+    "mediapipe",
+    "opencv",
+    "pyautogui",
+    "accessibility",
+    "human-computer-interaction"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Education",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Human Machine Interfaces",
+    "Topic :: Multimedia :: Video :: Display"
+]
+dependencies = [
+    "opencv-python>=4.8.0.76",
+    "mediapipe>=0.10.9",
+    "pyautogui>=0.9.54",
+    "pynput>=1.7.6",
+    "numpy>=1.24.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "flake8>=6.1.0",
+    "black>=23.7.0"
+]
+
+[project.scripts]
+gesture-mouse = "src.main:main"
+gesture-calibrate = "src.calibration:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v"
