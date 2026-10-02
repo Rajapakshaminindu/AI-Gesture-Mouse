@@ -3,10 +3,16 @@ Gesture Classification Engine and State Machine.
 
 Classifies hand landmark poses into concrete mouse actions according to
 the HackX AI Gesture Mouse specification.
+Includes:
+- Dynamic hand-scale normalization (robust against variable hand-to-camera distances)
+- Exponential moving average smoothing for landmark jitter reduction
+- Predominantly horizontal swipe vector filtering
+- Per-gesture configurable cooldown debouncing
 """
 
 from enum import Enum
 from typing import List, Tuple, Dict, Any, Optional
+from collections import deque
 import time
 import math
 
@@ -19,140 +25,153 @@ class GestureType(str, Enum):
     DOUBLE_CLICK = "DOUBLE_CLICK"
     DRAG = "DRAG"
     SCROLL = "SCROLL"
+    SWIPE_LEFT = "SWIPE_LEFT"
+    SWIPE_RIGHT = "SWIPE_RIGHT"
 
 
 class GestureRecognizer:
     """
-    Evaluates finger configuration and distances to classify active gestures.
-    Includes temporal state tracking to handle pinch-to-drag, debounce, and cooldowns.
+    Evaluates finger configuration, distance metrics, and temporal dynamics
+    to classify active gestures with high accuracy, noise suppression, and debounce.
     """
 
     def __init__(
         self,
-        pinch_click_threshold: float = 38.0,
-        drag_hold_duration: float = 0.45,
+        pinch_click_threshold_ratio: float = 0.22,
+        drag_hold_duration: float = 0.40,
         click_cooldown: float = 0.35,
-        scroll_sensitivity: float = 2.0
+        scroll_sensitivity: float = 2.0,
+        swipe_velocity_threshold: float = 380.0,
+        confidence_threshold: float = 0.75,
+        smoothing_factor: float = 0.35,
+        cooldowns: Optional[Dict[str, float]] = None
     ):
-        self.pinch_click_threshold = pinch_click_threshold
+        self.pinch_threshold_ratio = pinch_click_threshold_ratio
         self.drag_hold_duration = drag_hold_duration
         self.click_cooldown = click_cooldown
         self.scroll_sensitivity = scroll_sensitivity
+        self.swipe_velocity_threshold = swipe_velocity_threshold
+        self.confidence_threshold = confidence_threshold
+        self.smoothing_factor = smoothing_factor
 
-        # State tracking
+        # Per-gesture configurable cooldown dictionary (in seconds)
+        self.cooldowns: Dict[str, float] = {
+            GestureType.LEFT_CLICK.value: click_cooldown,
+            GestureType.RIGHT_CLICK.value: 0.40,
+            GestureType.DOUBLE_CLICK.value: 0.50,
+            GestureType.SWIPE_LEFT.value: 0.60,
+            GestureType.SWIPE_RIGHT.value: 0.60,
+        }
+        if cooldowns:
+            self.cooldowns.update(cooldowns)
+
+        # Debounce timestamp trackers
+        self.last_triggered_time: Dict[str, float] = {}
+
+        # Drag tracking
         self.pinch_start_time: Optional[float] = None
-        self.is_dragging = False
-        self.last_action_time = 0.0
-        self.last_click_timestamp = 0.0
-        self.last_scroll_y: Optional[float] = None
+        self.is_dragging: bool = False
+
+        # Jitter smoothing (Exponential Moving Average) for index tip
+        self.smoothed_index_pos: Optional[Tuple[float, float]] = None
+
+        # Swipe tracking: stores (timestamp, x, y)
+        self.swipe_history: deque = deque(maxlen=10)
+
+    def _euclidean_distance(self, p1: Tuple[float, float], p2: Tuple[float, float]) -> float:
+        """Calculate 2D Euclidean distance between two coordinate tuples."""
+        return math.hypot(p1[0] - p2[0], p1[1] - p2[1])
+
+    def _get_hand_scale(self, landmarks: List[List[int]]) -> float:
+        """
+        Calculates reference hand scale based on distance between Wrist (0) and Middle MCP (9).
+        Provides invariant normalization across different camera distances.
+        """
+        wrist = (float(landmarks[0][0]), float(landmarks[0][1]))
+        middle_base = (float(landmarks[9][0]), float(landmarks[9][1]))
+        scale = self._euclidean_distance(wrist, middle_base)
+        return max(scale, 20.0)  # Avoid division by zero
+
+    def _smooth_point(self, raw_point: Tuple[float, float]) -> Tuple[float, float]:
+        """Applies exponential moving average to filter out high-frequency landmark jitter."""
+        if self.smoothed_index_pos is None:
+            self.smoothed_index_pos = raw_point
+            return raw_point
+
+        alpha = self.smoothing_factor
+        sx = alpha * raw_point[0] + (1.0 - alpha) * self.smoothed_index_pos[0]
+        sy = alpha * raw_point[1] + (1.0 - alpha) * self.smoothed_index_pos[1]
+        self.smoothed_index_pos = (sx, sy)
+        return (sx, sy)
+
+    def _is_cooling_down(self, gesture: GestureType, now: float) -> bool:
+        """Check if gesture is blocked by cooldown."""
+        cooldown_period = self.cooldowns.get(gesture.value, 0.0)
+        last_time = self.last_triggered_time.get(gesture.value, 0.0)
+        return (now - last_time) < cooldown_period
+
+    def _record_trigger(self, gesture: GestureType, now: float) -> None:
+        """Record timestamp for cooldown debouncing."""
+        self.last_triggered_time[gesture.value] = now
+
+    def _detect_swipe(self, index_pos: Tuple[float, float], now: float) -> Optional[GestureType]:
+        """
+        Evaluates horizontal swipe velocity and trajectory angle.
+        Rejects movements where vertical displacement dominates horizontal displacement.
+        """
+        self.swipe_history.append((now, index_pos[0], index_pos[1]))
+
+        # Retain history strictly within last 0.22 seconds
+        while self.swipe_history and (now - self.swipe_history[0][0]) > 0.22:
+            self.swipe_history.popleft()
+
+        if len(self.swipe_history) < 3:
+            return None
+
+        dt = self.swipe_history[-1][0] - self.swipe_history[0][0]
+        if dt < 0.04:
+            return None
+
+        dx = self.swipe_history[-1][1] - self.swipe_history[0][1]
+        dy = self.swipe_history[-1][2] - self.swipe_history[0][2]
+
+        # Trajectory check: horizontal motion must dominate vertical motion
+        if abs(dx) < 1.4 * abs(dy):
+            return None
+
+        velocity_x = dx / dt
+        if abs(velocity_x) >= self.swipe_velocity_threshold:
+            self.swipe_history.clear()
+            return GestureType.SWIPE_LEFT if velocity_x < 0 else GestureType.SWIPE_RIGHT
+
+        return None
 
     def recognize(
         self,
         fingers: List[int],
         landmarks: List[List[int]],
+        confidence: float = 1.0,
         current_time: Optional[float] = None
     ) -> Tuple[GestureType, Dict[str, Any]]:
         """
-        Classifies current gesture from finger flags [thumb, index, middle, ring, pinky]
-        and raw 21 landmark positions.
+        Classifies current hand pose and returns (GestureType, metadata).
         """
         now = time.time() if current_time is None else current_time
-        meta: Dict[str, Any] = {}
+        meta: Dict[str, Any] = {"confidence": round(confidence, 2)}
 
-        if not landmarks or len(landmarks) < 21 or len(fingers) < 5:
-            self._reset_transient_states()
-            return GestureType.IDLE, meta
+        # 1. Confidence validation gate
+        if confidence < self.confidence_threshold:
+            return GestureType.IDLE, {"status": "low_confidence", "confidence": confidence}
 
-        thumb, index, middle, ring, pinky = fingers[0], fingers[1], fingers[2], fingers[3], fingers[4]
+        if not landmarks or len(landmarks) < 21:
+            return GestureType.IDLE, {"status": "insufficient_landmarks"}
 
-        # Calculate distance between thumb tip (4) and index tip (8)
-        p_thumb = landmarks[4]
-        p_index = landmarks[8]
-        pinch_dist = math.hypot(p_thumb[1] - p_index[1], p_thumb[2] - p_index[2])
-        meta["pinch_distance"] = pinch_dist
+        hand_scale = self._get_hand_scale(landmarks)
+        meta["hand_scale"] = round(hand_scale, 2)
 
-        # Calculate distance between thumb tip (4) and middle tip (12) for double click
-        p_middle = landmarks[12]
-        thumb_middle_dist = math.hypot(p_thumb[1] - p_middle[1], p_thumb[2] - p_middle[2])
-        meta["thumb_middle_distance"] = thumb_middle_dist
+        thumb_tip = (float(landmarks[4][0]), float(landmarks[4][1]))
+        raw_index_tip = (float(landmarks[8][0]), float(landmarks[8][1]))
+        index_tip = self._smooth_point(raw_index_tip)
+        middle_tip = (float(landmarks[12][0]), float(landmarks[12][1]))
 
-        # 1. Check for Pinch (Left Click or Drag)
-        # Pinch occurs when index tip is brought near thumb tip
-        is_pinching = pinch_dist < self.pinch_click_threshold
-
-        if is_pinching:
-            if self.pinch_start_time is None:
-                self.pinch_start_time = now
-
-            duration = now - self.pinch_start_time
-
-            # If held longer than drag threshold -> continuous DRAG
-            if duration >= self.drag_hold_duration:
-                self.is_dragging = True
-                meta["drag_duration"] = duration
-                return GestureType.DRAG, meta
-
-            return GestureType.IDLE, meta
-
-        else:
-            # Pinch released: if we were dragging, end drag
-            if self.is_dragging:
-                self.is_dragging = False
-                self.pinch_start_time = None
-                self.last_action_time = now
-                meta["drag_ended"] = True
-                return GestureType.IDLE, meta
-
-            # If pinch was released quickly before drag threshold -> triggers LEFT_CLICK
-            if self.pinch_start_time is not None:
-                duration = now - self.pinch_start_time
-                self.pinch_start_time = None
-
-                if duration < self.drag_hold_duration and (now - self.last_action_time) > self.click_cooldown:
-                    self.last_action_time = now
-                    self.last_click_timestamp = now
-                    return GestureType.LEFT_CLICK, meta
-
-        # 2. Right Click Gesture: Three fingers raised (Index, Middle, Ring UP; Pinky DOWN)
-        # As documented in Proposal Page 4 & 7
-        if index == 1 and middle == 1 and ring == 1 and pinky == 0:
-            if (now - self.last_action_time) > self.click_cooldown:
-                self.last_action_time = now
-                return GestureType.RIGHT_CLICK, meta
-            return GestureType.IDLE, meta
-
-        # 3. Double Click: Thumb + Middle pinch while index is extended
-        if thumb_middle_dist < self.pinch_click_threshold and index == 1:
-            if (now - self.last_action_time) > self.click_cooldown:
-                self.last_action_time = now
-                return GestureType.DOUBLE_CLICK, meta
-            return GestureType.IDLE, meta
-
-        # 4. Two-Finger Scroll: Index & Middle UP, Ring & Pinky DOWN (Peace sign pose)
-        if index == 1 and middle == 1 and ring == 0 and pinky == 0:
-            center_y = (landmarks[8][2] + landmarks[12][2]) / 2.0
-            scroll_delta = 0
-
-            if self.last_scroll_y is not None:
-                diff = self.last_scroll_y - center_y
-                if abs(diff) > 5.0:
-                    scroll_delta = int(diff * self.scroll_sensitivity)
-
-            self.last_scroll_y = center_y
-            meta["scroll_delta"] = scroll_delta
-            return GestureType.SCROLL, meta
-        else:
-            self.last_scroll_y = None
-
-        # 5. Move Cursor: Only Index Finger UP (Pointing Pose)
-        if index == 1 and middle == 0 and ring == 0 and pinky == 0:
-            meta["cursor_pt"] = (landmarks[8][1], landmarks[8][2])
-            return GestureType.MOVE, meta
-
-        return GestureType.IDLE, meta
-
-    def _reset_transient_states(self) -> None:
-        """Resets tracking when hand disappears."""
-        self.pinch_start_time = None
-        self.is_dragging = False
-        self.last_scroll_y = None
+        thumb, index, middle, ring, pinky = fingers if len(fingers) == 5 else [0, 0, 0, 0, 0]
