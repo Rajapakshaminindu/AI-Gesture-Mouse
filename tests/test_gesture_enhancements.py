@@ -55,3 +55,9 @@ def test_per_gesture_debounce():
     rec.recognize([1, 1, 0, 0, 0], landmarks_pinch, confidence=0.95, current_time=1.20)
     g2, _ = rec.recognize([1, 1, 0, 0, 0], landmarks_release, confidence=0.95, current_time=1.25)
     assert g2 == GestureType.IDLE
+
+  # 3. Third click after cooldown expires at 1.60 (elapsed 0.50s > 0.40s) -> allowed
+    rec.recognize([1, 1, 0, 0, 0], landmarks_pinch, confidence=0.95, current_time=1.55)
+    g3, _ = rec.recognize([1, 1, 0, 0, 0], landmarks_release, confidence=0.95, current_time=1.60)
+    assert g3 == GestureType.LEFT_CLICK
+
