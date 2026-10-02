@@ -226,6 +226,12 @@ class GestureRecognizer:
                 return GestureType.RIGHT_CLICK, meta
             return GestureType.IDLE, {"status": "cooldown_blocked", "gesture": GestureType.RIGHT_CLICK.value}
 
+  # 6. Cursor Move Mode: Only Index finger is extended
+        if index == 1 and middle == 0 and ring == 0 and pinky == 0:
+            return GestureType.MOVE, {"cursor_pos": [int(index_tip[0]), int(index_tip[1])]}
+        return GestureType.IDLE, meta
+
+
  # 5. Two-finger Scrolling: Index and Middle extended comfortably apart
         if index == 1 and middle == 1 and ring == 0 and pinky == 0 and middle_index_norm >= 0.25:
             avg_y = (index_tip[1] + middle_tip[1]) / 2.0
