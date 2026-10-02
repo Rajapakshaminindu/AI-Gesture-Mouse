@@ -61,3 +61,15 @@ def test_per_gesture_debounce():
     g3, _ = rec.recognize([1, 1, 0, 0, 0], landmarks_release, confidence=0.95, current_time=1.60)
     assert g3 == GestureType.LEFT_CLICK
 
+
+def test_horizontal_swipe_detection():
+    """Verify swipe left and right detection with fast horizontal velocities."""
+    rec = GestureRecognizer(swipe_velocity_threshold=350.0, smoothing_factor=1.0)
+    fingers = [0, 1, 0, 0, 0]
+    # Swipe Right simulation
+    rec.recognize(fingers, build_landmarks(index_x=100, index_y=150), confidence=0.9, current_time=1.00)
+    rec.recognize(fingers, build_landmarks(index_x=160, index_y=150), confidence=0.9, current_time=1.04)
+    g_right, _ = rec.recognize(fingers, build_landmarks(index_x=280, index_y=152), confidence=0.9, current_time=1.08)
+    assert g_right == GestureType.SWIPE_RIGHT
+
+
