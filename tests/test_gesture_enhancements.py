@@ -50,3 +50,8 @@ def test_per_gesture_debounce():
     rec.recognize([1, 1, 0, 0, 0], landmarks_pinch, confidence=0.95, current_time=1.0)
     g1, _ = rec.recognize([1, 1, 0, 0, 0], landmarks_release, confidence=0.95, current_time=1.1)
     assert g1 == GestureType.LEFT_CLICK
+
+ # 2. Second rapid click at 1.25 (elapsed 0.15s < 0.40s cooldown) -> blocked
+    rec.recognize([1, 1, 0, 0, 0], landmarks_pinch, confidence=0.95, current_time=1.20)
+    g2, _ = rec.recognize([1, 1, 0, 0, 0], landmarks_release, confidence=0.95, current_time=1.25)
+    assert g2 == GestureType.IDLE
