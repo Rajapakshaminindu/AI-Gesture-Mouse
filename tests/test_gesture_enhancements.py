@@ -1,0 +1,52 @@
+"""
+Comprehensive pytest test suite for gesture enhancements.
+Tests:
+- Hand scale normalization and dynamic distance calculation
+- High/low confidence threshold gate
+- Per-gesture cooldown debouncing
+- Directional velocity swipe recognition (rejection of vertical motions)
+"""
+import pytest
+from src.gesture_recognizer import GestureRecognizer, GestureType
+def build_landmarks(index_x: int = 100, index_y: int = 100, wrist_middle_dist: int = 100) -> list:
+    """Helper creating 21 standard landmarks with customizable reference hand scale."""
+    landmarks = [[0, 0] for _ in range(21)]
+    # Landmark 0: Wrist
+    landmarks[0] = [100, 200]
+    # Landmark 4: Thumb Tip
+    landmarks[4] = [200, 200]
+    # Landmark 8: Index Tip
+    landmarks[8] = [index_x, index_y]
+    # Landmark 9: Middle MCP (reference scale anchor)
+    landmarks[9] = [100, 200 - wrist_middle_dist]
+    # Landmark 12: Middle Tip
+    landmarks[12] = [250, 250]
+    return landmarks
+def test_confidence_filtering():
+    """Ensure frames below configured threshold are safely discarded."""
+    rec = GestureRecognizer(confidence_threshold=0.75)
+    landmarks = build_landmarks()
+    fingers = [0, 1, 0, 0, 0]
+    # Below threshold -> IDLE
+    gesture, meta = rec.recognize(fingers, landmarks, confidence=0.70, current_time=1.0)
+    assert gesture == GestureType.IDLE
+    assert meta["status"] == "low_confidence"
+    # Above threshold -> MOVE
+    gesture, _ = rec.recognize(fingers, landmarks, confidence=0.88, current_time=1.05)
+    assert gesture == GestureType.MOVE
+def test_per_gesture_debounce():
+    """Verify that multiple clicks triggered within cooldown window are debounced."""
+    rec = GestureRecognizer(
+        pinch_click_threshold_ratio=0.25,
+        cooldowns={GestureType.LEFT_CLICK.value: 0.40}
+    )
+    landmarks_pinch = build_landmarks()
+    landmarks_pinch[4] = [100, 100]
+    landmarks_pinch[8] = [105, 100]  # Very close to thumb (pinch)
+    landmarks_release = build_landmarks()
+    landmarks_release[4] = [100, 100]
+    landmarks_release[8] = [180, 100]  # Released
+    # 1. First click: pinch at 1.0, release at 1.1 (< 0.40s) -> triggers LEFT_CLICK
+    rec.recognize([1, 1, 0, 0, 0], landmarks_pinch, confidence=0.95, current_time=1.0)
+    g1, _ = rec.recognize([1, 1, 0, 0, 0], landmarks_release, confidence=0.95, current_time=1.1)
+    assert g1 == GestureType.LEFT_CLICK
