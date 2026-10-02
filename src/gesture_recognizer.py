@@ -225,3 +225,8 @@ class GestureRecognizer:
                 self._record_trigger(GestureType.RIGHT_CLICK, now)
                 return GestureType.RIGHT_CLICK, meta
             return GestureType.IDLE, {"status": "cooldown_blocked", "gesture": GestureType.RIGHT_CLICK.value}
+
+ # 5. Two-finger Scrolling: Index and Middle extended comfortably apart
+        if index == 1 and middle == 1 and ring == 0 and pinky == 0 and middle_index_norm >= 0.25:
+            avg_y = (index_tip[1] + middle_tip[1]) / 2.0
+            return GestureType.SCROLL, {"scroll_y": avg_y}
