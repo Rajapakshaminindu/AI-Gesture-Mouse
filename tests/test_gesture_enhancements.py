@@ -72,4 +72,15 @@ def test_horizontal_swipe_detection():
     g_right, _ = rec.recognize(fingers, build_landmarks(index_x=280, index_y=152), confidence=0.9, current_time=1.08)
     assert g_right == GestureType.SWIPE_RIGHT
 
+def test_reject_vertical_movement_for_swipe():
+    """Verify that vertical or diagonal movements do not falsely trigger swipe."""
+    rec = GestureRecognizer(swipe_velocity_threshold=350.0, smoothing_factor=1.0)
+    fingers = [0, 1, 0, 0, 0]
+    # Fast vertical movement (dy dominates dx)
+    rec.recognize(fingers, build_landmarks(index_x=150, index_y=100), confidence=0.9, current_time=2.00)
+    rec.recognize(fingers, build_landmarks(index_x=160, index_y=250), confidence=0.9, current_time=2.04)
+    gesture, _ = rec.recognize(fingers, build_landmarks(index_x=170, index_y=400), confidence=0.9, current_time=2.08)
+    assert gesture != GestureType.SWIPE_LEFT
+    assert gesture != GestureType.SWIPE_RIGHT
+
 
