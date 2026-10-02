@@ -176,10 +176,41 @@ class GestureRecognizer:
 
         thumb, index, middle, ring, pinky = fingers if len(fingers) == 5 else [0, 0, 0, 0, 0]
 
-# 2. Second rapid click at 1.25 (elapsed 0.15s < 0.40s cooldown) -> blocked
-    rec.recognize([1, 1, 0, 0, 0], landmarks_pinch, confidence=0.95, current_time=1.20)
-    g2, _ = rec.recognize([1, 1, 0, 0, 0], landmarks_release, confidence=0.95, current_time=1.25)
-    assert g2 == GestureType.IDLE
+        
+  # 2. Check for Horizontal Swipe (Only when index finger is solo pointing)
+        if index == 1 and middle == 0 and ring == 0 and pinky == 0:
+            swipe = self._detect_swipe(index_tip, now)
+            if swipe is not None:
+                if not self._is_cooling_down(swipe, now):
+                    self._record_trigger(swipe, now)
+                    return swipe, {"gesture": swipe.value, "status": "triggered"}
+                return GestureType.IDLE, {"status": "cooldown_blocked", "gesture": swipe.value}
+        # 3. Dynamic Normalized Pinch Distance (Thumb Tip to Index Tip)
+        pinch_dist = self._euclidean_distance(thumb_tip, index_tip)
+        norm_pinch = pinch_dist / hand_scale
+        meta["normalized_pinch"] = round(norm_pinch, 3)
+        if norm_pinch < self.pinch_threshold_ratio:
+            if self.pinch_start_time is None:
+                self.pinch_start_time = now
+            hold_time = now - self.pinch_start_time
+            meta["pinch_hold_time"] = round(hold_time, 3)
+            if hold_time >= self.drag_hold_duration:
+                self.is_dragging = True
+                return GestureType.DRAG, meta
+            return GestureType.IDLE, meta
+        else:
+            # Pinch released: evaluate if click or drag end
+            if self.pinch_start_time is not None:
+                hold_time = now - self.pinch_start_time
+                self.pinch_start_time = None
+                if self.is_dragging:
+                    self.is_dragging = False
+                    return GestureType.IDLE, {"status": "drag_released"}
+                if hold_time < self.drag_hold_duration:
+                    if not self._is_cooling_down(GestureType.LEFT_CLICK, now):
+                        self._record_trigger(GestureType.LEFT_CLICK, now)
+                        return GestureType.LEFT_CLICK, meta
+
 
  # 3. Third click after cooldown expires at 1.60 (elapsed 0.50s > 0.40s) -> allowed
     rec.recognize([1, 1, 0, 0, 0], landmarks_pinch, confidence=0.95, current_time=1.55)
