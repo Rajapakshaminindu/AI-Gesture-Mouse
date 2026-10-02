@@ -175,3 +175,8 @@ class GestureRecognizer:
         middle_tip = (float(landmarks[12][0]), float(landmarks[12][1]))
 
         thumb, index, middle, ring, pinky = fingers if len(fingers) == 5 else [0, 0, 0, 0, 0]
+
+# 2. Second rapid click at 1.25 (elapsed 0.15s < 0.40s cooldown) -> blocked
+    rec.recognize([1, 1, 0, 0, 0], landmarks_pinch, confidence=0.95, current_time=1.20)
+    g2, _ = rec.recognize([1, 1, 0, 0, 0], landmarks_release, confidence=0.95, current_time=1.25)
+    assert g2 == GestureType.IDLE
