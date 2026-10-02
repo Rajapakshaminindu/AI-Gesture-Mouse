@@ -216,3 +216,12 @@ class GestureRecognizer:
     rec.recognize([1, 1, 0, 0, 0], landmarks_pinch, confidence=0.95, current_time=1.55)
     g3, _ = rec.recognize([1, 1, 0, 0, 0], landmarks_release, confidence=0.95, current_time=1.60)
     assert g3 == GestureType.LEFT_CLICK
+
+
+ # 4. Right-Click: Index and Middle extended closely together
+        middle_index_norm = self._euclidean_distance(index_tip, middle_tip) / hand_scale
+        if index == 1 and middle == 1 and ring == 0 and pinky == 0 and middle_index_norm < 0.25:
+            if not self._is_cooling_down(GestureType.RIGHT_CLICK, now):
+                self._record_trigger(GestureType.RIGHT_CLICK, now)
+                return GestureType.RIGHT_CLICK, meta
+            return GestureType.IDLE, {"status": "cooldown_blocked", "gesture": GestureType.RIGHT_CLICK.value}
