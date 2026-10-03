@@ -2,7 +2,8 @@
 AI Gesture Mouse - Main Execution Pipeline.
 
 Combines camera capture, MediaPipe hand landmark tracking, gesture recognition,
-smooth cursor interpolation, startup splash screen, and interactive HUD overlay.
+adaptive cursor smoothing, action mapping hotkeys, analytics telemetry,
+startup splash screen, and interactive HUD overlay.
 """
 
 import sys
@@ -15,6 +16,9 @@ from src.config import AppConfig
 from src.hand_detector import HandDetector, HandLandmarks
 from src.mouse_controller import MouseController
 from src.gesture_recognizer import GestureRecognizer, GestureType
+from src.action_mapper import ActionMapper
+from src.analytics import GestureAnalytics
+
 
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -33,6 +37,8 @@ def parse_arguments() -> argparse.Namespace:
         help="Disable HUD graphics overlay"
     )
     return parser.parse_args()
+
+
 # Global ring animation tracker for click feedback
 click_animation_counter = 0
 click_animation_pos = (0, 0)
@@ -94,7 +100,7 @@ def draw_hud(
     cv2.line(frame, (cx - 10, cy), (cx + 10, cy), (100, 100, 100), 1)
     cv2.line(frame, (cx, cy - 10), (cx, cy + 10), (100, 100, 100), 1)
 
- # 2. Semi-Transparent Top Dashboard Panel
+    # 2. Semi-Transparent Top Dashboard Panel
     panel_w, panel_h = 360, 52
     overlay = frame.copy()
     cv2.rectangle(overlay, (15, 12), (15 + panel_w, 12 + panel_h), (18, 18, 22), -1)
@@ -103,7 +109,7 @@ def draw_hud(
 
     # Color Mapping according to state
     color_palette = {
-        GestureType.MOVE: (0, 255, 0),         # Green
+        GestureType.MOVE: (0, 255, 0),          # Green
         GestureType.LEFT_CLICK: (0, 255, 255),   # Yellow
         GestureType.RIGHT_CLICK: (0, 165, 255),  # Orange
         GestureType.DOUBLE_CLICK: (255, 0, 255), # Magenta
@@ -116,7 +122,7 @@ def draw_hud(
     gesture_name = active_gesture.value if hasattr(active_gesture, "value") else str(active_gesture)
     badge_color = color_palette.get(active_gesture, (220, 220, 220))
 
-# Mode Indicator Pill
+    # Mode Indicator Pill
     cv2.circle(frame, (35, 38), 7, badge_color, -1)
     cv2.putText(
         frame, f"STATE: {gesture_name}", (52, 43),
@@ -129,8 +135,7 @@ def draw_hud(
         cv2.FONT_HERSHEY_SIMPLEX, 0.45, (160, 200, 240), 1, cv2.LINE_AA
     )
 
-
- # 3. Click Ring Trigger
+    # 3. Click Ring Trigger
     if active_gesture in (GestureType.LEFT_CLICK, GestureType.RIGHT_CLICK):
         click_animation_counter = 6
         click_animation_pos = cursor_pos
@@ -138,7 +143,6 @@ def draw_hud(
     # Render expanding ripple ring when click occurs
     if click_animation_counter > 0:
         radius = int((7 - click_animation_counter) * 6) + 10
-        alpha_ring = click_animation_counter / 6.0
         cv2.circle(frame, click_animation_pos, radius, (0, 255, 255), 2, cv2.LINE_AA)
         click_animation_counter -= 1
 
@@ -170,8 +174,11 @@ def main() -> None:
         frame_size=(config.frame_width, config.frame_height),
         frame_margin=config.frame_margin,
         smoothing_factor=config.smoothing_factor,
-        deadzone=config.deadzone
+        deadzone=config.deadzone,
+        enable_adaptive_smoothing=config.enable_adaptive_smoothing
     )
+    action_mapper = ActionMapper(custom_bindings=config.action_bindings)
+    analytics = GestureAnalytics() if config.enable_analytics else None
 
     prev_time = time.time()
     start_time = time.time()
@@ -206,30 +213,37 @@ def main() -> None:
                 cursor_pos = (landmarks[8][1], landmarks[8][2])
                 active_gesture, meta = recognizer.recognize(fingers, landmarks, current_time=curr_time)
 
-                # Dispatch gesture to mouse controller
-                if active_gesture == GestureType.MOVE:
-                    mouse.move_cursor(cursor_pos[0], cursor_pos[1])
-                elif active_gesture == GestureType.LEFT_CLICK:
-                    mouse.move_cursor(cursor_pos[0], cursor_pos[1])
-                    mouse.left_click()
-                elif active_gesture == GestureType.RIGHT_CLICK:
-                    mouse.move_cursor(cursor_pos[0], cursor_pos[1])
-                    mouse.right_click()
-                elif active_gesture == GestureType.DOUBLE_CLICK:
-                    mouse.move_cursor(cursor_pos[0], cursor_pos[1])
-                    mouse.double_click()
-                elif active_gesture == GestureType.DRAG:
-                    mouse.move_cursor(cursor_pos[0], cursor_pos[1])
-                    mouse.start_drag()
-                elif active_gesture == GestureType.SCROLL:
-                    scroll_delta = meta.get("scroll_delta", 0)
-                    mouse.scroll(int(scroll_delta * config.scroll_sensitivity))
-                elif active_gesture in (GestureType.SWIPE_LEFT, GestureType.SWIPE_RIGHT):
-                    pass  # Swipe actions are handled at application level
-                else:
-                    # IDLE or drag released – if drag was active, end it
-                    if mouse.is_dragging:
-                        mouse.end_drag()
+                # Check for pause tracking status via ActionMapper
+                if not action_mapper.tracking_paused:
+                    # Dispatch gesture to mouse controller
+                    if active_gesture == GestureType.MOVE:
+                        mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                    elif active_gesture == GestureType.LEFT_CLICK:
+                        mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                        mouse.left_click()
+                    elif active_gesture == GestureType.RIGHT_CLICK:
+                        mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                        mouse.right_click()
+                    elif active_gesture == GestureType.DOUBLE_CLICK:
+                        mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                        mouse.double_click()
+                    elif active_gesture == GestureType.DRAG:
+                        mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                        mouse.start_drag()
+                    elif active_gesture == GestureType.SCROLL:
+                        scroll_delta = meta.get("scroll_delta", 0)
+                        mouse.scroll(int(scroll_delta * config.scroll_sensitivity))
+                    elif active_gesture in (GestureType.SWIPE_LEFT, GestureType.SWIPE_RIGHT):
+                        action_mapper.trigger_action(active_gesture.value, current_time=curr_time)
+                    else:
+                        # IDLE or drag released – if drag was active, end it
+                        if mouse.is_dragging:
+                            mouse.end_drag()
+
+            # Record Telemetry Frame
+            if analytics is not None:
+                g_name = active_gesture.value if hasattr(active_gesture, "value") else str(active_gesture)
+                analytics.log_frame(g_name, fps, cursor_pos)
 
             # Draw HUD
             if not args.no_hud and config.show_hud:
@@ -246,12 +260,15 @@ def main() -> None:
             if key in (ord('q'), 27):
                 break
 
+    except KeyboardInterrupt:
+        print("\n[Info] Interrupted by user.")
     finally:
+        mouse.end_drag()
         cap.release()
         cv2.destroyAllWindows()
+        if analytics is not None:
+            analytics.export_report()
 
 
 if __name__ == "__main__":
     main()
-
-

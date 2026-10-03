@@ -1,8 +1,8 @@
 """
 Mouse Controller Module.
 
-Provides jitter-free cursor movement with Exponential Moving Average (EMA) smoothing,
-deadzone filtering, and OS-level mouse event automation via PyAutoGUI.
+Provides jitter-free cursor movement with Adaptive Exponential Moving Average (EMA) smoothing,
+velocity-based dynamic scaling, deadzone filtering, and OS-level mouse event automation via PyAutoGUI.
 """
 
 from typing import Tuple, Optional
@@ -27,7 +27,7 @@ except Exception:
 class MouseController:
     """
     Translates normalized camera coordinates into desktop cursor coordinates
-    with smoothing, boundary clamping, and click state management.
+    with adaptive velocity smoothing, boundary clamping, and click state management.
     """
 
     def __init__(
@@ -36,7 +36,8 @@ class MouseController:
         frame_size: Tuple[int, int] = (640, 480),
         frame_margin: int = 100,
         smoothing_factor: float = 5.0,
-        deadzone: float = 3.0
+        deadzone: float = 3.0,
+        enable_adaptive_smoothing: bool = True
     ):
         if screen_size is not None:
             self.screen_w, self.screen_h = screen_size
@@ -52,6 +53,7 @@ class MouseController:
         self.frame_margin = frame_margin
         self.smoothing = max(1.0, smoothing_factor)
         self.deadzone = deadzone
+        self.enable_adaptive_smoothing = enable_adaptive_smoothing
 
         self.prev_x = self.screen_w / 2.0
         self.prev_y = self.screen_h / 2.0
@@ -60,6 +62,7 @@ class MouseController:
 
         self.is_dragging = False
         self.last_click_time = 0.0
+        self.last_velocity = 0.0
 
     def map_coordinates(self, x: float, y: float) -> Tuple[int, int]:
         """
@@ -83,15 +86,25 @@ class MouseController:
         target_x = norm_x * self.screen_w
         target_y = norm_y * self.screen_h
 
-        # Deadzone filter
+        # Distance & deadzone filter
         dist = math.hypot(target_x - self.prev_x, target_y - self.prev_y)
+        self.last_velocity = dist
+
         if dist < self.deadzone:
             target_x = self.prev_x
             target_y = self.prev_y
 
-        # Exponential smoothing
-        self.curr_x = self.prev_x + (target_x - self.prev_x) / self.smoothing
-        self.curr_y = self.prev_y + (target_y - self.prev_y) / self.smoothing
+        # Adaptive velocity smoothing:
+        # High speed -> smaller divisor (ultra fast response)
+        # Low speed -> larger divisor (tremor-free precision)
+        if self.enable_adaptive_smoothing:
+            speed_factor = min(3.5, dist / 25.0)
+            effective_smoothing = max(1.0, self.smoothing / (1.0 + speed_factor))
+        else:
+            effective_smoothing = self.smoothing
+
+        self.curr_x = self.prev_x + (target_x - self.prev_x) / effective_smoothing
+        self.curr_y = self.prev_y + (target_y - self.prev_y) / effective_smoothing
 
         self.prev_x = self.curr_x
         self.prev_y = self.curr_y
@@ -99,9 +112,7 @@ class MouseController:
         return int(self.curr_x), int(self.curr_y)
 
     def move_cursor(self, x: float, y: float) -> Tuple[int, int]:
-        """
-        Calculates smoothed coordinates and positions mouse pointer.
-        """
+        """Calculates smoothed coordinates and positions mouse pointer."""
         target_x, target_y = self.map_coordinates(x, y)
 
         if PYAUTOGUI_AVAILABLE and pyautogui is not None:

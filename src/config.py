@@ -1,11 +1,12 @@
 """
 Configuration Module for AI Gesture Mouse.
 
-Handles runtime parameters, defaults, and JSON serialization.
+Handles runtime parameters, default bindings, adaptive smoothing options,
+and JSON serialization.
 """
 
-from dataclasses import dataclass, asdict
-from typing import Tuple
+from dataclasses import dataclass, asdict, field, fields
+from typing import Tuple, Dict, Any
 import json
 import os
 
@@ -26,12 +27,19 @@ class AppConfig:
     frame_margin: int = 90
     smoothing_factor: float = 5.0
     deadzone: float = 3.5
+    enable_adaptive_smoothing: bool = True
 
     # Gesture thresholds
     pinch_threshold: float = 38.0
     drag_hold_duration: float = 0.45
     click_cooldown: float = 0.35
     scroll_sensitivity: float = 2.0
+
+    # Analytics & Features
+    enable_analytics: bool = True
+
+    # Custom Action Mappings
+    action_bindings: Dict[str, Any] = field(default_factory=dict)
 
     # Display & HUD
     show_fps: bool = True
@@ -40,6 +48,28 @@ class AppConfig:
     primary_color: Tuple[int, int, int] = (0, 255, 128)  # BGR
     accent_color: Tuple[int, int, int] = (255, 200, 0)   # BGR
 
+    def validate(self) -> "AppConfig":
+        """Clamps and validates configuration parameters to safe bounds."""
+        self.camera_index = max(0, int(self.camera_index))
+        self.detection_confidence = max(0.0, min(1.0, float(self.detection_confidence)))
+        self.tracking_confidence = max(0.0, min(1.0, float(self.tracking_confidence)))
+        self.frame_width = max(100, int(self.frame_width))
+        self.frame_height = max(100, int(self.frame_height))
+        self.frame_margin = max(0, int(self.frame_margin))
+        self.smoothing_factor = max(1.0, float(self.smoothing_factor))
+        self.deadzone = max(0.0, float(self.deadzone))
+        self.pinch_threshold = max(5.0, float(self.pinch_threshold))
+        self.drag_hold_duration = max(0.1, float(self.drag_hold_duration))
+        self.click_cooldown = max(0.05, float(self.click_cooldown))
+        self.scroll_sensitivity = max(0.1, float(self.scroll_sensitivity))
+
+        if isinstance(self.primary_color, (list, tuple)):
+            self.primary_color = tuple(int(c) for c in self.primary_color[:3])
+        if isinstance(self.accent_color, (list, tuple)):
+            self.accent_color = tuple(int(c) for c in self.accent_color[:3])
+
+        return self
+
     @classmethod
     def load(cls, filepath: str = "config.json") -> "AppConfig":
         """Loads configuration from JSON file or returns defaults."""
@@ -47,7 +77,10 @@ class AppConfig:
             try:
                 with open(filepath, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                return cls(**data)
+                valid_keys = {f.name for f in fields(cls)}
+                filtered_data = {k: v for k, v in data.items() if k in valid_keys}
+                config = cls(**filtered_data)
+                return config.validate()
             except Exception as e:
                 print(f"[Warning] Failed to load config from {filepath}: {e}. Using defaults.")
         return cls()
