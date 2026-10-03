@@ -116,3 +116,16 @@ def draw_hud(
     }
     gesture_name = active_gesture.value if hasattr(active_gesture, "value") else str(active_gesture)
     badge_color = color_palette.get(active_gesture, (220, 220, 220))
+
+# Mode Indicator Pill
+    cv2.circle(frame, (35, 38), 7, badge_color, -1)
+    cv2.putText(
+        frame, f"STATE: {gesture_name}", (52, 43),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2, cv2.LINE_AA
+    )
+
+    # Telemetry Info (FPS & Smoothing)
+    cv2.putText(
+        frame, f"FPS {int(fps)} | SM {config.smoothing_factor}", (240, 43),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (160, 200, 240), 1, cv2.LINE_AA
+    )
