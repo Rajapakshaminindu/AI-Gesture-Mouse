@@ -1,4 +1,3 @@
-python
 """
 AI Gesture Mouse - Main Execution Pipeline.
 
@@ -162,12 +161,13 @@ def main() -> None:
         track_con=config.tracking_confidence
     )
     recognizer = GestureRecognizer(
-        pinch_click_threshold_ratio=config.pinch_threshold / 180.0,
+        pinch_click_threshold=config.pinch_threshold,
         drag_hold_duration=config.drag_hold_duration,
         click_cooldown=config.click_cooldown,
         scroll_sensitivity=config.scroll_sensitivity
     )
     mouse = MouseController(
+        frame_size=(config.frame_width, config.frame_height),
         frame_margin=config.frame_margin,
         smoothing_factor=config.smoothing_factor,
         deadzone=config.deadzone
@@ -194,17 +194,42 @@ def main() -> None:
 
             # Hand Tracking
             frame = detector.find_hands(frame, draw=config.draw_landmarks)
-            landmarks = detector.get_landmarks(frame)
-            fingers = detector.fingers_up()
+            landmarks = detector.find_positions(frame)
+            fingers = detector.fingers_up(landmarks)
 
             active_gesture = GestureType.IDLE
             meta = {}
             cursor_pos = (config.frame_width // 2, config.frame_height // 2)
 
             if landmarks and len(landmarks) >= 21:
-                cursor_pos = (landmarks[8][0], landmarks[8][1])
+                # landmarks[8] = [id, x, y]; use [1],[2] for pixel coords
+                cursor_pos = (landmarks[8][1], landmarks[8][2])
                 active_gesture, meta = recognizer.recognize(fingers, landmarks, current_time=curr_time)
-                mouse.process_gesture(active_gesture, cursor_pos, meta)
+
+                # Dispatch gesture to mouse controller
+                if active_gesture == GestureType.MOVE:
+                    mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                elif active_gesture == GestureType.LEFT_CLICK:
+                    mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                    mouse.left_click()
+                elif active_gesture == GestureType.RIGHT_CLICK:
+                    mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                    mouse.right_click()
+                elif active_gesture == GestureType.DOUBLE_CLICK:
+                    mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                    mouse.double_click()
+                elif active_gesture == GestureType.DRAG:
+                    mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                    mouse.start_drag()
+                elif active_gesture == GestureType.SCROLL:
+                    scroll_delta = meta.get("scroll_delta", 0)
+                    mouse.scroll(int(scroll_delta * config.scroll_sensitivity))
+                elif active_gesture in (GestureType.SWIPE_LEFT, GestureType.SWIPE_RIGHT):
+                    pass  # Swipe actions are handled at application level
+                else:
+                    # IDLE or drag released – if drag was active, end it
+                    if mouse.is_dragging:
+                        mouse.end_drag()
 
             # Draw HUD
             if not args.no_hud and config.show_hud:

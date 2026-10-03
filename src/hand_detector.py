@@ -78,14 +78,30 @@ class HandDetector:
         self.landmark_list: List[List[int]] = []
 
         if MEDIAPIPE_AVAILABLE and mp is not None:
-            self.mp_hands = mp.solutions.hands
-            self.hands = self.mp_hands.Hands(
-                static_image_mode=self.mode,
-                max_num_hands=self.max_hands,
-                min_detection_confidence=self.detection_con,
-                min_tracking_confidence=self.track_con
-            )
-            self.mp_draw = mp.solutions.drawing_utils
+            try:
+                self.mp_hands = mp.solutions.hands
+                self.hands = self.mp_hands.Hands(
+                    static_image_mode=self.mode,
+                    max_num_hands=self.max_hands,
+                    min_detection_confidence=self.detection_con,
+                    min_tracking_confidence=self.track_con
+                )
+                self.mp_draw = mp.solutions.drawing_utils
+            except AttributeError:
+                # mediapipe >= 1.0 removed the legacy solutions submodule.
+                # Gracefully degrade: hand tracking will be unavailable but
+                # the rest of the application can still run.
+                import warnings
+                warnings.warn(
+                    "mediapipe.solutions is not available (mediapipe >= 1.0 detected). "
+                    "Please install mediapipe==0.10.* for full functionality. "
+                    "Hand tracking is disabled.",
+                    RuntimeWarning,
+                    stacklevel=2
+                )
+                self.mp_hands = None
+                self.hands = None
+                self.mp_draw = None
 
     def find_hands(self, img: Any, draw: bool = True) -> Any:
         """

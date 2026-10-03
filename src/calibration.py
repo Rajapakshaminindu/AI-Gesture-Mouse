@@ -1,4 +1,3 @@
-python
 """
 Interactive Calibration Tool for AI Gesture Mouse.
 
@@ -58,16 +57,16 @@ def run_calibration(config_path: str = "config.json") -> None:
 
             h, w, _ = frame.shape
             frame = detector.find_hands(frame, draw=True)
-            landmarks = detector.get_landmarks(frame)
+            landmarks = detector.find_positions(frame)
 
             # Active margin box
             m = config.frame_margin
             cv2.rectangle(frame, (m, m), (w - m, h - m), (0, 180, 255), 2)
 
             if landmarks and len(landmarks) >= 21:
-                # Calculate Thumb(4) to Index(8) distance
-                p1 = np.array(landmarks[4][:2])
-                p2 = np.array(landmarks[8][:2])
+                # landmarks[id] = [id, x, y] — use indices 1 and 2 for pixel coords
+                p1 = np.array(landmarks[4][1:3])   # Thumb tip (x, y)
+                p2 = np.array(landmarks[8][1:3])   # Index tip (x, y)
                 current_pinch = float(np.linalg.norm(p1 - p2))
                 cv2.line(frame, tuple(p1), tuple(p2), (0, 255, 255), 2)
 
