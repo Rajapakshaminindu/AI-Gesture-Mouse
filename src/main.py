@@ -129,3 +129,104 @@ def draw_hud(
         frame, f"FPS {int(fps)} | SM {config.smoothing_factor}", (240, 43),
         cv2.FONT_HERSHEY_SIMPLEX, 0.45, (160, 200, 240), 1, cv2.LINE_AA
     )
+
+
+ # 3. Click Ring Trigger
+    if active_gesture in (GestureType.LEFT_CLICK, GestureType.RIGHT_CLICK):
+        click_animation_counter = 6
+        click_animation_pos = cursor_pos
+
+    # Render expanding ripple ring when click occurs
+    if click_animation_counter > 0:
+        radius = int((7 - click_animation_counter) * 6) + 10
+        alpha_ring = click_animation_counter / 6.0
+        cv2.circle(frame, click_animation_pos, radius, (0, 255, 255), 2, cv2.LINE_AA)
+        click_animation_counter -= 1
+
+
+def main() -> None:
+    args = parse_arguments()
+    config = AppConfig.load(args.config)
+    camera_idx = args.camera if args.camera is not None else config.camera_index
+
+    cap = cv2.VideoCapture(camera_idx)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.frame_width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.frame_height)
+
+    if not cap.isOpened():
+        print(f"[Error] Failed to open camera device #{camera_idx}.")
+        sys.exit(1)
+
+    detector = HandDetector(
+        detection_con=config.detection_confidence,
+        track_con=config.tracking_confidence
+    )
+    recognizer = GestureRecognizer(
+        pinch_click_threshold_ratio=config.pinch_threshold / 180.0,
+        drag_hold_duration=config.drag_hold_duration,
+        click_cooldown=config.click_cooldown,
+        scroll_sensitivity=config.scroll_sensitivity
+    )
+    mouse = MouseController(
+        frame_margin=config.frame_margin,
+        smoothing_factor=config.smoothing_factor,
+        deadzone=config.deadzone
+    )
+
+    prev_time = time.time()
+    start_time = time.time()
+    fps = 0.0
+
+    print("AI Gesture Mouse operational. Press 'q' in webcam window to terminate.")
+
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            if config.flip_horizontal:
+                frame = cv2.flip(frame, 1)
+
+            curr_time = time.time()
+            fps = 1.0 / (curr_time - prev_time) if (curr_time - prev_time) > 0 else 30.0
+            prev_time = curr_time
+
+            # Hand Tracking
+            frame = detector.find_hands(frame, draw=config.draw_landmarks)
+            landmarks = detector.get_landmarks(frame)
+            fingers = detector.fingers_up()
+
+            active_gesture = GestureType.IDLE
+            meta = {}
+            cursor_pos = (config.frame_width // 2, config.frame_height // 2)
+
+            if landmarks and len(landmarks) >= 21:
+                cursor_pos = (landmarks[8][0], landmarks[8][1])
+                active_gesture, meta = recognizer.recognize(fingers, landmarks, current_time=curr_time)
+                mouse.process_gesture(active_gesture, cursor_pos, meta)
+
+            # Draw HUD
+            if not args.no_hud and config.show_hud:
+                draw_hud(frame, active_gesture, fps, config, cursor_pos, meta)
+
+            # Draw Splash Screen during first 2 seconds
+            elapsed = curr_time - start_time
+            if elapsed < 2.0:
+                draw_splash_screen(frame, elapsed, total_duration=2.0)
+
+            cv2.imshow("AI Gesture Mouse", frame)
+
+            key = cv2.waitKey(1) & 0xFF
+            if key in (ord('q'), 27):
+                break
+
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    main()
+
+
