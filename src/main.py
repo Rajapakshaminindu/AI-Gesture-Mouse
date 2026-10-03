@@ -147,14 +147,33 @@ def draw_hud(
         click_animation_counter -= 1
 
 
+def open_working_camera(preferred_idx: int, width: int, height: int) -> tuple[cv2.VideoCapture, int]:
+    """Probes candidate camera indices and returns the first one delivering live video frames."""
+    candidates = [preferred_idx] + [i for i in (1, 0, 2, 3) if i != preferred_idx]
+    for idx in candidates:
+        cap = cv2.VideoCapture(idx)
+        if cap.isOpened():
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+            ret, frame = cap.read()
+            if ret and frame is not None and frame.size > 0:
+                print(f"[Info] Successfully connected to live camera device #{idx}.")
+                return cap, idx
+            cap.release()
+
+    # Fallback to preferred
+    cap = cv2.VideoCapture(preferred_idx)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+    return cap, preferred_idx
+
+
 def main() -> None:
     args = parse_arguments()
     config = AppConfig.load(args.config)
     camera_idx = args.camera if args.camera is not None else config.camera_index
 
-    cap = cv2.VideoCapture(camera_idx)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.frame_width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.frame_height)
+    cap, active_cam_idx = open_working_camera(camera_idx, config.frame_width, config.frame_height)
 
     if not cap.isOpened():
         print(f"[Error] Failed to open camera device #{camera_idx}.")
