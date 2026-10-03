@@ -139,3 +139,29 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+Interactive Calibration Tool for AI Gesture Mouse.
+
+Allows users to test camera feed, measure personal pinch distance threshold,
+calibrate active interaction boundary, and persist optimized settings with
+a live graphical dashboard.
+"""
+
+import sys
+import time
+import cv2
+import numpy as np
+
+from src.config import AppConfig
+from src.hand_detector import HandDetector
+
+
+def draw_bar(frame: np.ndarray, x: int, y: int, w: int, h: int, value: float, max_val: float, label: str, color: tuple):
+    """Draws a sleek labeled horizontal bar graph with background track."""
+    cv2.rectangle(frame, (x, y), (x + w, y + h), (40, 40, 45), -1)
+    fill_w = int(min(max(value / max_val, 0.0), 1.0) * w)
+    cv2.rectangle(frame, (x, y), (x + fill_w, y + h), color, -1)
+    cv2.rectangle(frame, (x, y), (x + w, y + h), (90, 90, 100), 1)
+    cv2.putText(frame, f"{label}: {value:.1f}", (x, y - 6),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.42, (220, 220, 220), 1, cv2.LINE_AA)
