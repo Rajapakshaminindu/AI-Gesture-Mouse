@@ -37,3 +37,44 @@ This guide details all supported hand gestures, triggers, and practical tips for
      python -m src.calibration
      ```
    - Adjust the smoothing factor (`+` / `-`) to balance latency versus jitter.
+  
+   markdown
+# ✋ AI Gesture Mouse - Comprehensive User Guide
+
+Touchless computer interaction powered by Computer Vision and Hand Landmark Detection.
+
+---
+
+## 🖥️ Modern HUD Interface Overview
+
+The on-screen Head-Up Display (HUD) provides live visual telemetry without cluttering your interaction space:
+
+1. **Top Dashboard Panel**: Displays live operating mode, real-time FPS counter, and current smoothing dynamic.
+2. **Gesture State Color Coding**:
+   - 🟢 `MOVE` (Green): Index pointing, guiding mouse movement.
+   - 🟡 `LEFT_CLICK` (Yellow): Pinch detected & executed.
+   - 🟠 `RIGHT_CLICK` (Orange): Two-finger secondary click.
+   - 🟣 `DOUBLE_CLICK` (Magenta): Rapid double pinch.
+   - 🔶 `DRAG` (Deep Orange): Maintained pinch gesture to grab & move items.
+   - 🔵 `SCROLL` (Cyan): Two fingers separated moving vertically.
+   - ⚪ `IDLE` (White): Hand resting or low landmark confidence.
+3. **Animated Click Ring**: An expanding radial indicator flashes on the index fingertip when a click triggers.
+4. **Interaction Boundary**: Dashed frame margin indicating the active cursor zone.
+
+---
+
+## 🎯 Step-by-Step Calibration Workflow
+
+To tailor gesture sensitivity to your hand size and camera distance:
+
+1. Launch calibration:
+   bash
+   python -m src.calibration
+   
+2. **Set Pinch Threshold**: Pinch your index finger and thumb together, then press `[C]` to capture your personal threshold distance.
+3. **Tune Smoothing**: Use `[+]` to reduce cursor jitter, or `[-]` for snappier cursor response.
+4. **Save Profile**: Press `[S]` to store preferences to `config.json`.
+5. Press `[Q]` or `[Esc]` to return to normal operation.
+
+
+---
