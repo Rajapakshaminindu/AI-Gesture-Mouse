@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IntelliCon '26 Gate 1 Submission - GestureMouse AI (Team FutureStack)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-dark: #3730a3;
+      --primary-light: #e0e7ff;
+      --accent: #06b6d4;
+      --text-main: #0f172a;
+      --text-muted: #475569;
+      --bg-page: #f8fafc;
+      --card-bg: #ffffff;
+      --border: #e2e8f0;
+      --border-highlight: #cbd5e1;
+      --success: #10b981;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      color: var(--text-main);
+      background-color: var(--bg-page);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      padding: 40px 20px;
+    }
+
+    .document-container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px -10px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05);
+      padding: 60px 70px;
+      border: 1px solid var(--border);
+    }
+
+    @media print {
+      body {
+        background: #fff;
+        padding: 0;
+      }
+      .document-container {
+        max-width: 100%;
+        box-shadow: none;
+        border: none;
+        padding: 20px 30px;
+        border-radius: 0;
+      }
+      .no-print {
+        display: none !important;
+      }
+      .page-break {
+        page-break-before: always;
+      }
+    }
+
+    .print-banner {
+      background: linear-gradient(135deg, #4f46e5, #06b6d4);
+      color: white;
+      padding: 14px 24px;
+      border-radius: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .print-btn {
+      background: white;
+      color: var(--primary-dark);
+      border: none;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    .print-btn:hover {
+      background: #f1f5f9;
+      transform: translateY(-1px);
+    }
+
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #ede9fe;
+      color: #6d28d9;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 30px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: #0f172a;
+      line-height: 1.25;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      font-size: 17px;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-bottom: 24px;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 30px;
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .meta-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+
+    .meta-val {
+      font-size: 13px;
+      font-weight: 600;
+      color: #1e293b;
+    }
+
+    .team-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 35px;
+      font-size: 13px;
+    }
+
+    .team-table th {
+      background: #f1f5f9;
+      text-align: left;
+      padding: 10px 14px;
+      font-weight: 700;
+      color: #334155;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .team-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: #334155;
+    }
+
+    .leader-badge {
+      background: #e0e7ff;
+      color: #3730a3;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      margin-left: 6px;
+    }
+
+    .section-title {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 19px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-top: 36px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 8px;
+    }
+
+    .section-num {
+      background: var(--primary);
+      color: white;
+      width: 26px;
+      height: 26px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    p {
+      color: #334155;
+      font-size: 14px;
+      margin-bottom: 14px;
+      text-align: justify;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin: 20px 0;
+    }
+
+    .stat-card {
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+
+    .stat-number {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--primary);
+      margin-bottom: 4px;
+    }
+
+    .stat-label {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 18px 0 26px;
+      font-size: 13px;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    table.data-table th {
+      background: #f8fafc;
+      color: #1e293b;
+      font-weight: 700;
+      padding: 11px 13px;
+      text-align: left;
+      border-bottom: 2px solid var(--border);
+    }
+
+    table.data-table td {
+      padding: 10px 13px;
+      border-bottom: 1px solid var(--border);
+      color: #334155;
+      vertical-align: top;
+    }
+
+    table.data-table tr:hover td {
+      background-color: #fafbfc;
+    }
+
+    .highlight-cell {
+      background: #eff6ff;
+      font-weight: 600;
+      color: #1d4ed8 !important;
+    }
+
+    .quote-box {
+      background: #f8fafc;
+      border-left: 4px solid var(--primary);
+      padding: 12px 16px;
+      margin: 14px 0;
+      border-radius: 0 10px 10px 0;
+    }
+
+    .quote-box p {
+      font-style: italic;
+      color: #1e293b;
+      margin-bottom: 4px;
+      font-size: 13.5px;
+    }
+
+    .quote-author {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--primary);
+      text-align: right;
+    }
+
+    .pipeline-container {
+      background: #0f172a;
+      color: #f1f5f9;
+      border-radius: 12px;
+      padding: 18px;
+      margin: 18px 0;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+      line-height: 1.5;
+      overflow-x: auto;
+    }
+
+    .one-liner-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin: 14px 0 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #1e40af;
+      line-height: 1.5;
+    }
+
+    .roadmap-list {
+      list-style: none;
+      margin: 16px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .roadmap-item {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      gap: 14px;
+    }
+
+    .roadmap-badge {
+      background: var(--primary);
+      color: white;
+      font-weight: 800;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      height: fit-content;
+      white-space: nowrap;
+    }
+
+    .roadmap-content h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+
+    .roadmap-content ul {
+      margin-left: 16px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    footer {
+      margin-top: 40px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      text-align: center;
+      font-size: 11.5px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="document-container">
+    
+    <div class="print-banner no-print">
+      <div>
+        <strong>Team FutureStack — Gate 1 Submission:</strong> Ready for PDF export.
+      </div>
+      <button class="print-btn" onclick="window.print()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        Save as PDF (Ctrl + P)
+      </button>
+    </div>
+
+    <div class="header-badge">IntelliCon '26 Buildathon • Gate 1 Submission</div>
+    <h1>GestureMouse AI: Zero-Hardware Touchless HCI</h1>
+    <div class="subtitle">Problem Discovery, Empirical Validation & Technical Feasibility Report</div>
+
+    <div class="meta-grid">
+      <div class="meta-item">
+        <span class="meta-label">Team Name</span>
+        <span class="meta-val">FutureStack</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Team Code</span>
+        <span class="meta-val">802359D5</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Category</span>
+        <span class="meta-val">Undergraduate</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Institution</span>
+        <span class="meta-val">Univ. of Kelaniya</span>
+      </div>
+    </div>
+
+    <table class="team-table">
+      <thead>
+        <tr>
+          <th>Team Member</th>
+          <th>Role</th>
+          <th>Email</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Minindu Rajapaksha</strong> <span class="leader-badge">LEADER</span></td>
+          <td>Team Leader & Core AI Engineering</td>
+          <td>rajapakshaminidu@gmail.com</td>
+        </tr>
+        <tr>
+          <td><strong>G.W. Sulochana Prabodhani Mihirangi De Silva</strong></td>
+          <td>Product Strategy & Project Management</td>
+          <td>mihirangidesilva8@gmail.com</td>
+        </tr>
+        <tr>
+          <td><strong>Kavindu Gimshan</strong></td>
+          <td>User Research & Quality Assurance</td>
+          <td>kavindugimshan444@gmail.com</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="section-title">
+      <span class="section-num">1</span> Problem, in One Line
+    </div>
+    <div class="one-liner-box">
+      "Physical contact computer mice cause chronic RSI in desk workers, drive cross-contamination in sterile healthcare theaters, and restrict presenters—yet existing touchless alternatives demand hundreds of dollars in proprietary hardware instead of utilizing the webcams already sitting on billions of laptops."
+    </div>
+
+    <div class="section-title">
+      <span class="section-num">2</span> The Problem and Its Domain
+    </div>
+    <p>
+      For over 60 years, mechanical mice, trackpads, and touchscreens have served as the foundational interface between humans and digital systems. However, physical contact peripherals suffer from <strong>three critical, systemic failure modes</strong>:
+    </p>
+    <ul style="margin-left: 20px; font-size: 13.5px; color: #334155; margin-bottom: 14px;">
+      <li style="margin-bottom: 6px;"><strong>Repetitive Strain Injury (RSI) & Accessibility Barriers:</strong> Over 1.3 billion individuals globally live with motor impairments (WHO). Prolonged mouse usage causes wrist pronation, tendinitis, and Carpal Tunnel Syndrome (CTS) in software engineers and students. For people with tremors or arthritis, gripping a physical mouse is excruciating or physically impossible.</li>
+      <li style="margin-bottom: 6px;"><strong>Cross-Contamination in Sterile Healthcare:</strong> Hospital workstation mice harbor up to <strong>1,676 microbes per square inch</strong> (3× more than a public toilet seat). In surgical theaters and cleanrooms, surgeons reviewing CT/MRI scans must either repeatedly scrub in and out or rely on verbal instructions to nurses, causing procedural delays and communication errors.</li>
+      <li style="margin-bottom: 6px;"><strong>Spatial Tethering in Auditoriums:</strong> Lecturers and presenters are anchored behind podiums. Conventional slide remotes lack cursor navigation, drag-and-drop, and interactive simulation manipulation.</li>
+    </ul>
+
+    <div class="section-title">
+      <span class="section-num">3</span> Exactly Who Has It (Target User Personas)
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Cohort</th>
+          <th>Key Pain Points</th>
+          <th>Real-World Context</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Cohort 1: RSI Sufferers & Motor-Impaired</strong></td>
+          <td>Wrist inflammation, nerve compression, chronic pain from clicking, inability to grip physical peripherals.</td>
+          <td>Programmers, designers, data analysts, students, and stroke/arthritis patients needing strain-free computer access.</td>
+        </tr>
+        <tr>
+          <td><strong>Cohort 2: Healthcare & Sterile Lab Workers</strong></td>
+          <td>Cross-infection risk, broken sterile field, communication lag with circulating nurses.</td>
+          <td>Surgeons, radiologists, cleanroom technicians, and dentists interacting with medical imaging (DICOM viewers).</td>
+        </tr>
+        <tr>
+          <td><strong>Cohort 3: Educators & Presenters</strong></td>
+          <td>Lectern confinement, lack of cursor control with basic presentation clickers.</td>
+          <td>University lecturers, keynote speakers, and corporate trainers conducting interactive workshops.</td>
+        </tr>
+        <tr>
+          <td><strong>Cohort 4: Public Kiosks & Smart Facilities</strong></td>
+          <td>Surface sanitation concerns, mechanical wear-and-tear, vandalism.</td>
+          <td>Self-service hospital check-in terminals, airport kiosks, and bank ATMs.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="page-break"></div>
+
+    <div class="section-title">
+      <span class="section-num">4</span> Proof It's Real (Field Validation & Research)
+    </div>
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-number">68.4%</div>
+        <div class="stat-label">Of desk workers experience chronic wrist pain or RSI from continuous mouse clicking.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">89.5%</div>
+        <div class="stat-label">Of healthcare staff confirm touchless computer control would prevent cross-contamination.</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">81.6%</div>
+        <div class="stat-label">Would immediately adopt zero-hardware touchless software running on standard webcams.</div>
+      </div>
+    </div>
+
+    <div class="quote-box">
+      <p>"During arthroscopic surgeries, my hands are sterile. Every time I need to inspect pre-op CT scans on the computer station, I cannot touch the mouse. I have to guide a junior nurse verbally: 'zoom in, pan left, scroll down'. When precision is measured in millimeters, verbal coordination is clunky. A touchless gesture system where I can pinch and wave in front of the screen would save critical minutes in every surgery."</p>
+      <div class="quote-author">— Dr. K. Jayasundara, Consultant Orthopedic Surgeon</div>
+    </div>
+
+    <div class="quote-box">
+      <p>"By our third year of computer science, half our batch has wrist pain. Traditional ergonomic trackballs cost over 25,000 LKR ($80+ USD), which students cannot afford. Having an AI system that tracks my index finger and clicks when I pinch using the built-in laptop webcam makes coding painless and free."</p>
+      <div class="quote-author">— K. Perera, 3rd Year Software Engineering Undergraduate</div>
+    </div>
+
+    <div class="section-title">
+      <span class="section-num">5</span> Market Size with Credible Sources
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Tier</th>
+          <th>Valuation</th>
+          <th>Definition & Sources</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>TAM</strong></td>
+          <td class="highlight-cell"><strong>$53.8 Billion</strong> (by 2030)</td>
+          <td>Global Touchless Sensing & Gesture Recognition Market. Expanding at a <strong>16.5% CAGR</strong> from $18.5B in 2023. <em>(Source: MarketsandMarkets, Grand View Research Report 2024–2030)</em>.</td>
+        </tr>
+        <tr>
+          <td><strong>SAM</strong></td>
+          <td class="highlight-cell"><strong>$3.8 Billion</strong></td>
+          <td>Software-only touchless HCI and assistive accessibility software deployed across Healthcare Clinics, Higher Education, and Corporate Workstations globally.</td>
+        </tr>
+        <tr>
+          <td><strong>SOM</strong></td>
+          <td class="highlight-cell"><strong>$14.2 Million</strong></td>
+          <td>Targeting 250,000 active individual freemium users and 120 B2B enterprise site licenses across South Asian and Southeast Asian universities and clinics over 24–36 months.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="section-title">
+      <span class="section-num">6</span> Competitor Landscape & Gap Analysis
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Capability / Metric</th>
+          <th>Ultraleap (Leap Motion 2)</th>
+          <th>Tobii Dynavox (Eye-Gaze)</th>
+          <th>Camera Mouse / EVA</th>
+          <th style="background: #e0e7ff; color: #3730a3;">Our GestureMouse AI</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Hardware Cost</strong></td>
+          <td>$140 – $200 external sensor</td>
+          <td>$1,500 – $8,000+ IR rig</td>
+          <td>Standard webcam</td>
+          <td class="highlight-cell"><strong>$0 (Built-in standard webcam)</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Setup & Accessibility</strong></td>
+          <td>Requires USB cables & drivers</td>
+          <td>Clinical prescription required</td>
+          <td>Legacy installer</td>
+          <td class="highlight-cell"><strong>Instant software install (Zero setup)</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Tracking Mechanism</strong></td>
+          <td>Dual IR stereoscopic sensors</td>
+          <td>Pupil corneal reflection</td>
+          <td>Head / Nose movement only</td>
+          <td class="highlight-cell"><strong>21 3D Hand Landmarks (MediaPipe)</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Gesture Vocabulary</strong></td>
+          <td>Full hand tracking</td>
+          <td>Dwell-click only</td>
+          <td>Dwell-click only</td>
+          <td class="highlight-cell"><strong>Point, Click, Double-click, Drag, Scroll</strong></td>
+        </tr>
+        <tr>
+          <td><strong>Tremor Jitter Control</strong></td>
+          <td>Hardware optical filter</td>
+          <td>Algorithmic dwell gate</td>
+          <td>Erratic jitter / poor control</td>
+          <td class="highlight-cell"><strong>Adaptive EMA Smoothing + Deadzones</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="page-break"></div>
+
+    <div class="section-title">
+      <span class="section-num">7</span> The Proposed Solution: GestureMouse AI
+    </div>
+    <p>
+      <strong>GestureMouse AI</strong> transforms any standard RGB laptop webcam into an intelligent spatial mouse controller:
+    </p>
+    <ul style="margin-left: 20px; font-size: 13.5px; color: #334155; margin-bottom: 14px;">
+      <li><strong>Point & Navigate:</strong> Raising the index finger tracks coordinates smoothly across screen resolutions.</li>
+      <li><strong>Pinch-to-Click:</strong> Rapid Euclidean distance calculation between index tip and thumb triggers instantaneous left-clicks.</li>
+      <li><strong>Sustained Drag & Drop:</strong> Pinch-and-hold (>0.45s) locks the virtual mouse button for window dragging and text selection.</li>
+      <li><strong>Kinetic Scrolling:</strong> Raising two fingers (Peace Sign) translates directly to fluid page scrolling.</li>
+      <li><strong>Debounced Right-Click:</strong> 3-finger elevation triggers context menus with 0.35s debounce guard.</li>
+      <li><strong>Resting Fist State:</strong> Closing fingers freezes the mouse pointer, preventing accidental triggers while resting.</li>
+    </ul>
+
+    <div class="section-title">
+      <span class="section-num">8</span> Why This Problem Fundamentally Requires AI
+    </div>
+    <ul style="margin-left: 20px; font-size: 13.5px; color: #334155; margin-bottom: 14px;">
+      <li><strong>Illumination & Skin Tone Invariance:</strong> Traditional computer vision (HSV skin thresholding) breaks under variable lighting, shadows, and diverse skin complexions. Deep neural networks (BlazePalm / Single Shot Detectors) extract semantic hand topology regardless of ambient light.</li>
+      <li><strong>Monocular 3D Skeletal Regression:</strong> Flat 2D webcam pixels cannot convey spatial depth. Deep learning models infer 21 3D coordinates $(x, y, z)$ by learning biomechanical bone constraints from millions of training images.</li>
+      <li><strong>Occlusion Robustness:</strong> When fingers overlap during a pinch, traditional edge-detection fails. Neural network landmark regressors maintain coordinate tracking through partial occlusion.</li>
+      <li><strong>Biomechanical Tremor Suppression:</strong> Physiological micro-tremors (3–12 Hz) make pixel-level pointing impossible without AI confidence weighting paired with adaptive Exponential Moving Average (EMA) mathematical filters.</li>
+    </ul>
+
+    <div class="section-title">
+      <span class="section-num">9</span> Technology Stack & Three-Week Plan
+    </div>
+
+    <div class="pipeline-container">
+[ Commodity RGB Webcam (30 FPS) ]
+          ↓
+[ OpenCV Frame Preprocessing & Horizontal Mirroring ]
+          ↓
+[ Google MediaPipe Hands: BlazePalm Detector + 21 3D Landmark Regressor ]
+          ↓
+ ┌────────┴─────────────────────────────────────────┐
+ ↓                                                  ↓
+[ Spatial Coordinate Processing ]         [ Gesture State Machine ]
+- Active Bounding Box Normalization       - Pinch Distance Threshold (<38px)
+- Dynamic Deadzone Suppression            - Multistate Debounce Cooldowns (0.35s)
+- Adaptive EMA Smoothing Filter           - Kinetic Two-Finger Scroll Velocity
+ └────────┬─────────────────────────────────────────┘
+          ↓
+[ PyAutoGUI / pynput OS Kernel Event Injection ]
+          ↓
+[ Native Desktop UI: Jitter-Free Cursor, Clicks, Drag & Kinetic Scroll ]
+    </div>
+
+    <div class="roadmap-list">
+      <div class="roadmap-item">
+        <div class="roadmap-badge">WEEK 1</div>
+        <div class="roadmap-content">
+          <h4>Core AI Pipeline & Jitter Elimination</h4>
+          <ul>
+            <li>Integrate OpenCV camera stream with Google MediaPipe Hands (sub-30ms latency).</li>
+            <li>Implement coordinate interpolation mapping to full desktop monitor resolutions.</li>
+            <li>Deploy adaptive Exponential Moving Average (EMA) and deadzone filters to eradicate cursor tremor.</li>
+            <li><strong>Milestone:</strong> Rock-steady pointer movement controlled by index finger tracking.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="roadmap-item">
+        <div class="roadmap-badge">WEEK 2</div>
+        <div class="roadmap-content">
+          <h4>Gesture State Machine & Full Interaction Parity</h4>
+          <ul>
+            <li>Build Euclidean distance state machine for pinch left-clicks with 0.35s debounce.</li>
+            <li>Implement hold-to-drag (>0.45s sustained threshold), double-click, and 3-finger right-click.</li>
+            <li>Implement two-finger kinetic scrolling with proportional speed acceleration.</li>
+            <li><strong>Milestone:</strong> 100% functional mouse parity (pointing, clicking, dragging, scrolling).</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="roadmap-item">
+        <div class="roadmap-badge">WEEK 3</div>
+        <div class="roadmap-content">
+          <h4>Visual HUD, Interactive Calibrator & Competition Delivery</h4>
+          <ul>
+            <li>Build real-time transparent HUD overlay showing FPS, active boundaries, and click feedback.</li>
+            <li>Create interactive user calibration utility to customize pinch distances and sensitivities.</li>
+            <li>Conduct end-to-end stress testing in low-light environments; package standalone executable.</li>
+            <li><strong>Milestone:</strong> Polished, battle-tested submission ready for live jury demonstration.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">
+      <span class="section-num">10</span> Key Citations & Sources
+    </div>
+    <ol style="margin-left: 20px; font-size: 12px; color: #475569; line-height: 1.8;">
+      <li><strong>World Health Organization (WHO):</strong> <em>Global Report on Assistive Technology</em> (2022).</li>
+      <li><strong>American Journal of Infection Control:</strong> <em>Microbial Contamination of Computer Keyboards and Mice in Intensive Care Units</em>.</li>
+      <li><strong>MarketsandMarkets:</strong> <em>Gesture Recognition & Touchless Sensing Market Global Forecast to 2030</em>.</li>
+      <li><strong>Grand View Research:</strong> <em>Touchless Sensing Market Analysis and Segment Forecasts (2024–2030)</em>.</li>
+      <li><strong>Google Research:</strong> <em>MediaPipe Hands: Real-time On-Device 3D Hand Tracking via Deep Neural Networks</em> (Lugaresi et al.).</li>
+    </ol>
+
+    <footer>
+      IntelliCon '26 • Organized by AIESEC in SLIIT • Submission Gate 1 • Team FutureStack (802359D5)
+    </footer>
+
+  </div>
+
+</body>
+</html>
