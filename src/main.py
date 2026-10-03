@@ -94,3 +94,25 @@ def draw_hud(
     cx, cy = (x_min + x_max) // 2, (y_min + y_max) // 2
     cv2.line(frame, (cx - 10, cy), (cx + 10, cy), (100, 100, 100), 1)
     cv2.line(frame, (cx, cy - 10), (cx, cy + 10), (100, 100, 100), 1)
+
+ # 2. Semi-Transparent Top Dashboard Panel
+    panel_w, panel_h = 360, 52
+    overlay = frame.copy()
+    cv2.rectangle(overlay, (15, 12), (15 + panel_w, 12 + panel_h), (18, 18, 22), -1)
+    cv2.rectangle(overlay, (15, 12), (15 + panel_w, 12 + panel_h), (50, 50, 60), 1)
+    cv2.addWeighted(overlay, 0.72, frame, 0.28, 0, frame)
+
+    # Color Mapping according to state
+    color_palette = {
+        GestureType.MOVE: (0, 255, 0),         # Green
+        GestureType.LEFT_CLICK: (0, 255, 255),   # Yellow
+        GestureType.RIGHT_CLICK: (0, 165, 255),  # Orange
+        GestureType.DOUBLE_CLICK: (255, 0, 255), # Magenta
+        GestureType.DRAG: (0, 140, 255),         # Deep Orange
+        GestureType.SCROLL: (255, 255, 0),       # Cyan
+        GestureType.SWIPE_LEFT: (255, 120, 50),  # Blue-Cyan
+        GestureType.SWIPE_RIGHT: (255, 120, 50),
+        GestureType.IDLE: (220, 220, 220)        # White
+    }
+    gesture_name = active_gesture.value if hasattr(active_gesture, "value") else str(active_gesture)
+    badge_color = color_palette.get(active_gesture, (220, 220, 220))
