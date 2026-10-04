@@ -71,6 +71,8 @@ ehthumbs.db
 Thumbs.db
 desktop.ini
 
-# Logs
+# Logs & Runtime reports
 *.log
 logs/
+analytics_report.json
+*.task

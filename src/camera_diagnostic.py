@@ -6,14 +6,20 @@ Run this to find the correct camera index for your system:
 """
 
 import sys
+import time
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 try:
     import cv2
 except ImportError:
     print("[Error] OpenCV is not installed. Run: pip install -r requirements.txt")
     sys.exit(1)
-
-import time
 
 
 def diagnose_cameras(max_index: int = 10) -> None:
