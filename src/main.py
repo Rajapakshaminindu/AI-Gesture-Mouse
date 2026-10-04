@@ -9,8 +9,16 @@ startup splash screen, and interactive HUD overlay.
 import sys
 import time
 import argparse
-import cv2
 import numpy as np
+
+# Import cv2 with explicit error handling
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    print("[Error] OpenCV (cv2) is not installed. Please run: pip install -r requirements.txt")
+    CV2_AVAILABLE = False
+    sys.exit(1)
 
 from src.config import AppConfig
 from src.hand_detector import HandDetector, HandLandmarks
@@ -149,34 +157,63 @@ def draw_hud(
 
 def open_working_camera(preferred_idx: int, width: int, height: int) -> tuple[cv2.VideoCapture, int]:
     """Probes candidate camera indices and returns the first one delivering live video frames."""
+    if not CV2_AVAILABLE or cv2 is None:
+        print("[Error] OpenCV is not available. Cannot access camera.")
+        return None, -1
+
     candidates = [preferred_idx] + [i for i in (1, 0, 2, 3) if i != preferred_idx]
+    
     for idx in candidates:
-        cap = cv2.VideoCapture(idx)
-        if cap.isOpened():
+        try:
+            cap = cv2.VideoCapture(idx)
+            if cap is None:
+                print(f"[Warning] Camera device #{idx} returned None object.")
+                continue
+                
+            if cap.isOpened():
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                ret, frame = cap.read()
+                if ret and frame is not None and frame.size > 0:
+                    print(f"[Info] Successfully connected to live camera device #{idx}.")
+                    return cap, idx
+                cap.release()
+        except Exception as e:
+            print(f"[Warning] Failed to open camera device #{idx}: {e}")
+            continue
+
+    # Final fallback attempt
+    try:
+        print(f"[Info] Attempting fallback to preferred camera index #{preferred_idx}...")
+        cap = cv2.VideoCapture(preferred_idx)
+        if cap is not None and cap.isOpened():
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-            ret, frame = cap.read()
-            if ret and frame is not None and frame.size > 0:
-                print(f"[Info] Successfully connected to live camera device #{idx}.")
-                return cap, idx
-            cap.release()
-
-    # Fallback to preferred
-    cap = cv2.VideoCapture(preferred_idx)
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-    return cap, preferred_idx
+            return cap, preferred_idx
+    except Exception as e:
+        print(f"[Error] Fallback camera attempt failed: {e}")
+    
+    return None, -1
 
 
 def main() -> None:
+    # Verify dependencies
+    if not CV2_AVAILABLE:
+        print("[Error] OpenCV is required. Please install it: pip install -r requirements.txt")
+        sys.exit(1)
+
     args = parse_arguments()
     config = AppConfig.load(args.config)
     camera_idx = args.camera if args.camera is not None else config.camera_index
 
+    print(f"[Info] Initializing camera device #{camera_idx}...")
     cap, active_cam_idx = open_working_camera(camera_idx, config.frame_width, config.frame_height)
 
-    if not cap.isOpened():
-        print(f"[Error] Failed to open camera device #{camera_idx}.")
+    if cap is None or not cap.isOpened():
+        print(f"[Error] Failed to open any camera device. Please check:")
+        print("  - Camera is connected and not in use by another application")
+        print("  - Camera permissions are granted")
+        print("  - Try specifying a different camera with --camera <index>")
         sys.exit(1)
 
     detector = HandDetector(
@@ -209,7 +246,14 @@ def main() -> None:
         while True:
             ret, frame = cap.read()
             if not ret:
-                break
+                print("[Warning] Failed to read frame from camera. Retrying...")
+                time.sleep(0.1)
+                continue
+
+            if frame is None or frame.size == 0:
+                print("[Warning] Received empty frame from camera.")
+                time.sleep(0.1)
+                continue
 
             if config.flip_horizontal:
                 frame = cv2.flip(frame, 1)
@@ -281,12 +325,18 @@ def main() -> None:
 
     except KeyboardInterrupt:
         print("\n[Info] Interrupted by user.")
+    except Exception as e:
+        print(f"[Error] Unexpected error in main loop: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
         mouse.end_drag()
-        cap.release()
+        if cap is not None:
+            cap.release()
         cv2.destroyAllWindows()
         if analytics is not None:
             analytics.export_report()
+        print("[Info] Cleanup complete. Exiting.")
 
 
 if __name__ == "__main__":
