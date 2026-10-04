@@ -6,6 +6,8 @@ Utilizes Google MediaPipe Hands and OpenCV to track 21 3D hand landmarks in real
 
 from typing import List, Tuple, Optional, Dict, Any
 import math
+
+# Check for cv2 availability
 try:
     import cv2
     CV2_AVAILABLE = True
@@ -13,11 +15,15 @@ except ImportError:
     cv2 = None
     CV2_AVAILABLE = False
 
+# Check for numpy availability
 try:
     import numpy as np
+    NUMPY_AVAILABLE = True
 except ImportError:
     np = None
+    NUMPY_AVAILABLE = False
 
+# Check for mediapipe availability
 try:
     import mediapipe as mp
     MEDIAPIPE_AVAILABLE = True
@@ -102,26 +108,38 @@ class HandDetector:
                 self.mp_hands = None
                 self.hands = None
                 self.mp_draw = None
+        else:
+            import warnings
+            warnings.warn(
+                "MediaPipe is not installed. Hand detection will be unavailable. "
+                "Please install: pip install mediapipe",
+                RuntimeWarning,
+                stacklevel=2
+            )
 
     def find_hands(self, img: Any, draw: bool = True) -> Any:
         """
         Processes image frame to detect hands and draw landmark skeleton.
         """
-        if not MEDIAPIPE_AVAILABLE or self.hands is None or cv2 is None:
+        if not MEDIAPIPE_AVAILABLE or self.hands is None or not CV2_AVAILABLE or cv2 is None:
             return img
 
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        self.results = self.hands.process(img_rgb)
+        try:
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            self.results = self.hands.process(img_rgb)
 
-        if self.results.multi_hand_landmarks and draw:
-            for hand_landmarks in self.results.multi_hand_landmarks:
-                self.mp_draw.draw_landmarks(
-                    img,
-                    hand_landmarks,
-                    self.mp_hands.HAND_CONNECTIONS,
-                    self.mp_draw.DrawingSpec(color=(0, 255, 128), thickness=2, circle_radius=3),
-                    self.mp_draw.DrawingSpec(color=(255, 200, 0), thickness=2, circle_radius=2)
-                )
+            if self.results.multi_hand_landmarks and draw:
+                for hand_landmarks in self.results.multi_hand_landmarks:
+                    self.mp_draw.draw_landmarks(
+                        img,
+                        hand_landmarks,
+                        self.mp_hands.HAND_CONNECTIONS,
+                        self.mp_draw.DrawingSpec(color=(0, 255, 128), thickness=2, circle_radius=3),
+                        self.mp_draw.DrawingSpec(color=(255, 200, 0), thickness=2, circle_radius=2)
+                    )
+        except Exception as e:
+            print(f"[Warning] Error in hand detection: {e}")
+            return img
 
         return img
 
@@ -138,12 +156,15 @@ class HandDetector:
         if not MEDIAPIPE_AVAILABLE or self.results is None or not self.results.multi_hand_landmarks:
             return self.landmark_list
 
-        if hand_no < len(self.results.multi_hand_landmarks):
-            selected_hand = self.results.multi_hand_landmarks[hand_no]
-            h, w, _ = img.shape
-            for idx, lm in enumerate(selected_hand.landmark):
-                cx, cy = int(lm.x * w), int(lm.y * h)
-                self.landmark_list.append([idx, cx, cy])
+        try:
+            if hand_no < len(self.results.multi_hand_landmarks):
+                selected_hand = self.results.multi_hand_landmarks[hand_no]
+                h, w, _ = img.shape
+                for idx, lm in enumerate(selected_hand.landmark):
+                    cx, cy = int(lm.x * w), int(lm.y * h)
+                    self.landmark_list.append([idx, cx, cy])
+        except Exception as e:
+            print(f"[Warning] Error extracting landmark positions: {e}")
 
         return self.landmark_list
 
@@ -162,25 +183,29 @@ class HandDetector:
 
         fingers = []
 
-        # Thumb: compare X coordinates depending on hand orientation
-        # For Right Hand facing camera: tip to the left (smaller x) means open
-        if handedness == "Right":
-            if lm[HandLandmarks.THUMB_TIP][1] < lm[HandLandmarks.THUMB_IP][1]:
-                fingers.append(1)
+        try:
+            # Thumb: compare X coordinates depending on hand orientation
+            # For Right Hand facing camera: tip to the left (smaller x) means open
+            if handedness == "Right":
+                if lm[HandLandmarks.THUMB_TIP][1] < lm[HandLandmarks.THUMB_IP][1]:
+                    fingers.append(1)
+                else:
+                    fingers.append(0)
             else:
-                fingers.append(0)
-        else:
-            if lm[HandLandmarks.THUMB_TIP][1] > lm[HandLandmarks.THUMB_IP][1]:
-                fingers.append(1)
-            else:
-                fingers.append(0)
+                if lm[HandLandmarks.THUMB_TIP][1] > lm[HandLandmarks.THUMB_IP][1]:
+                    fingers.append(1)
+                else:
+                    fingers.append(0)
 
-        # 4 Fingers: check if tip Y coordinate is above PIP Y coordinate (y is 0 at top)
-        for tip_id, pip_id in zip(HandLandmarks.FINGER_TIPS[1:], HandLandmarks.FINGER_PIPS[1:]):
-            if lm[tip_id][2] < lm[pip_id][2]:
-                fingers.append(1)
-            else:
-                fingers.append(0)
+            # 4 Fingers: check if tip Y coordinate is above PIP Y coordinate (y is 0 at top)
+            for tip_id, pip_id in zip(HandLandmarks.FINGER_TIPS[1:], HandLandmarks.FINGER_PIPS[1:]):
+                if lm[tip_id][2] < lm[pip_id][2]:
+                    fingers.append(1)
+                else:
+                    fingers.append(0)
+        except (IndexError, TypeError) as e:
+            print(f"[Warning] Error detecting finger states: {e}")
+            return [0, 0, 0, 0, 0]
 
         return fingers
 
@@ -200,16 +225,20 @@ class HandDetector:
         if len(lm) < 21:
             return 0.0, [0, 0, 0, 0, 0, 0], img
 
-        x1, y1 = lm[p1][1], lm[p1][2]
-        x2, y2 = lm[p2][1], lm[p2][2]
-        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+        try:
+            x1, y1 = lm[p1][1], lm[p1][2]
+            x2, y2 = lm[p2][1], lm[p2][2]
+            cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
 
-        length = math.hypot(x2 - x1, y2 - y1)
+            length = math.hypot(x2 - x1, y2 - y1)
 
-        if img is not None and draw and cv2 is not None:
-            cv2.circle(img, (x1, y1), 8, (255, 0, 255), cv2.FILLED)
-            cv2.circle(img, (x2, y2), 8, (255, 0, 255), cv2.FILLED)
-            cv2.line(img, (x1, y1), (x2, y2), (255, 0, 255), 2)
-            cv2.circle(img, (cx, cy), 6, (0, 255, 255), cv2.FILLED)
+            if img is not None and draw and CV2_AVAILABLE and cv2 is not None:
+                cv2.circle(img, (x1, y1), 8, (255, 0, 255), cv2.FILLED)
+                cv2.circle(img, (x2, y2), 8, (255, 0, 255), cv2.FILLED)
+                cv2.line(img, (x1, y1), (x2, y2), (255, 0, 255), 2)
+                cv2.circle(img, (cx, cy), 6, (0, 255, 255), cv2.FILLED)
 
-        return length, [x1, y1, x2, y2, cx, cy], img
+            return length, [x1, y1, x2, y2, cx, cy], img
+        except (IndexError, TypeError, ValueError) as e:
+            print(f"[Warning] Error calculating distance: {e}")
+            return 0.0, [0, 0, 0, 0, 0, 0], img
