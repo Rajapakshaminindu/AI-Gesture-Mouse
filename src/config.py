@@ -19,14 +19,14 @@ class AppConfig:
     frame_height: int = 480
     flip_horizontal: bool = True
 
-    # Tracking confidence
-    detection_confidence: float = 0.7
-    tracking_confidence: float = 0.6
+    # Tracking confidence (optimized for faster detection)
+    detection_confidence: float = 0.5  # Reduced from 0.7 for faster response
+    tracking_confidence: float = 0.5   # Reduced from 0.6 for faster response
 
     # Coordinate mapping & cursor dynamics
     frame_margin: int = 90
-    smoothing_factor: float = 5.0
-    deadzone: float = 3.5
+    smoothing_factor: float = 3.5  # Reduced from 5.0 for better responsiveness
+    deadzone: float = 2.0  # Reduced from 3.5 for faster micro-movements
     enable_adaptive_smoothing: bool = True
 
     # Gesture thresholds
