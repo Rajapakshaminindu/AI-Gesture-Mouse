@@ -135,13 +135,15 @@ class HandDetector:
                     base_options = mp_python.BaseOptions(model_asset_path=model_path)
                     options = mp_vision.HandLandmarkerOptions(
                         base_options=base_options,
-                        running_mode=mp_vision.RunningMode.IMAGE,
+                        running_mode=mp_vision.RunningMode.VIDEO,
                         num_hands=self.max_hands,
                         min_hand_detection_confidence=self.detection_con,
+                        min_hand_presence_confidence=max(0.3, self.detection_con - 0.2),
                         min_tracking_confidence=self.track_con
                     )
                     self.task_detector = mp_vision.HandLandmarker.create_from_options(options)
                     self.use_tasks_api = True
+                    self._frame_timestamp_ms = 0
                 except Exception as e:
                     import warnings
                     warnings.warn(
@@ -178,7 +180,7 @@ class HandDetector:
 
             if self.use_tasks_api:
                 mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=img_rgb)
-                self.results = self.task_detector.detect(mp_img)
+                self.results = self.task_detector.detect_for_video(mp_img, self._frame_timestamp_ms)
 
                 if self.results and hasattr(self.results, "hand_landmarks") and self.results.hand_landmarks and draw:
                     h, w, _ = img.shape

@@ -17,7 +17,7 @@ except ImportError:
 try:
     import pyautogui
     pyautogui.FAILSAFE = False
-    pyautogui.PAUSE = 0.001
+    pyautogui.PAUSE = 0  # Zero latency — no artificial delay between calls
     PYAUTOGUI_AVAILABLE = True
 except Exception:
     pyautogui = None

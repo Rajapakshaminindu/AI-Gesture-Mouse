@@ -33,9 +33,9 @@ class GestureRecognizer:
 
     def __init__(
         self,
-        pinch_click_threshold: float = 38.0,
-        drag_hold_duration: float = 0.45,
-        click_cooldown: float = 0.35,
+        pinch_click_threshold: float = 45.0,  # Increased: easier to trigger left click
+        drag_hold_duration: float = 0.35,  # Faster drag detection so click window feels snappier
+        click_cooldown: float = 0.25,
         scroll_sensitivity: float = 2.0,
         swipe_velocity_threshold: float = 400.0,
         confidence_threshold: float = 0.75,
@@ -51,8 +51,8 @@ class GestureRecognizer:
         # Per-gesture configurable cooldown dictionary (in seconds)
         self.cooldowns: Dict[str, float] = {
             GestureType.LEFT_CLICK.value: click_cooldown,
-            GestureType.RIGHT_CLICK.value: 0.40,
-            GestureType.DOUBLE_CLICK.value: 0.50,
+            GestureType.RIGHT_CLICK.value: 0.70,  # Longer cooldown — prevents repeated firing while held
+            GestureType.DOUBLE_CLICK.value: 0.70,  # longer cooldown — prevents palm-hold spam
             GestureType.SWIPE_LEFT.value: 0.60,
             GestureType.SWIPE_RIGHT.value: 0.60,
         }
@@ -190,26 +190,26 @@ class GestureRecognizer:
                         return GestureType.LEFT_CLICK, meta
                     return GestureType.IDLE, {"status": "cooldown_blocked"}
 
-        # Right click: Three-finger gesture (index + middle + ring all up, fingers close)
-        # OR two-finger tight pinch (index + middle close, < 20px), any ring state
+        # Double Click: 4 fingers up — index+middle+ring+pinky, thumb ignored
+        # Easy natural transition from index-only move gesture
+        # Thumb NOT required — thumb detection is unreliable when hand is angled
+        if index == 1 and middle == 1 and ring == 1 and pinky == 1:
+            if not self._is_cooling_down(GestureType.DOUBLE_CLICK, now):
+                self._record_trigger(GestureType.DOUBLE_CLICK, now)
+                return GestureType.DOUBLE_CLICK, meta
+            return GestureType.IDLE, {"status": "cooldown_blocked"}
+
+        # Right click: 3-finger salute — index+middle+ring up, pinky DOWN
+        # pinky==0 ensures no overlap with double click (4 fingers)
+        if index == 1 and middle == 1 and ring == 1 and pinky == 0:
+            if not self._is_cooling_down(GestureType.RIGHT_CLICK, now):
+                self._record_trigger(GestureType.RIGHT_CLICK, now)
+                return GestureType.RIGHT_CLICK, meta
+            return GestureType.IDLE, {"status": "cooldown_blocked"}
+
+        # Scrolling: Peace sign (index + middle only, ring==0)
         middle_index_dist = self._euclidean_distance(landmarks[8], landmarks[12])
-
-        # 3-finger right-click: index+middle up with ring also up, fingers close together
-        if index == 1 and middle == 1 and ring == 1 and middle_index_dist < 35.0:
-            if not self._is_cooling_down(GestureType.RIGHT_CLICK, now):
-                self._record_trigger(GestureType.RIGHT_CLICK, now)
-                return GestureType.RIGHT_CLICK, meta
-            return GestureType.IDLE, {"status": "cooldown_blocked"}
-
-        # 2-finger right-click: index+middle very close pinch (ring must be down)
-        if index == 1 and middle == 1 and ring == 0 and middle_index_dist < 20.0:
-            if not self._is_cooling_down(GestureType.RIGHT_CLICK, now):
-                self._record_trigger(GestureType.RIGHT_CLICK, now)
-                return GestureType.RIGHT_CLICK, meta
-            return GestureType.IDLE, {"status": "cooldown_blocked"}
-
-        # Scrolling: Peace sign (index + middle only, ring==0) and fingers spread (>= 20px)
-        if index == 1 and middle == 1 and ring == 0 and middle_index_dist >= 20.0:
+        if index == 1 and middle == 1 and ring == 0:
             # Compute average Y of index+middle tips for scroll delta tracking
             if len(landmarks[8]) == 3:
                 avg_y = (landmarks[8][2] + landmarks[12][2]) / 2.0

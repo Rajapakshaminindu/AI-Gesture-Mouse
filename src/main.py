@@ -180,6 +180,8 @@ def open_working_camera(preferred_idx: int, width: int, height: int) -> tuple[cv
             if cap.isOpened():
                 cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
                 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)   # Minimize frame buffer lag
+                cap.set(cv2.CAP_PROP_FPS, 30)          # Request 30 fps from camera
                 ret, frame = cap.read()
                 if ret and frame is not None and frame.size > 0:
                     print(f"[Info] Successfully connected to live camera device #{idx}.")
@@ -196,6 +198,8 @@ def open_working_camera(preferred_idx: int, width: int, height: int) -> tuple[cv
         if cap is not None and cap.isOpened():
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            cap.set(cv2.CAP_PROP_FPS, 30)
             return cap, preferred_idx
     except Exception as e:
         print(f"[Error] Fallback camera attempt failed: {e}")
@@ -246,6 +250,9 @@ def main() -> None:
     prev_time = time.time()
     start_time = time.time()
     fps = 0.0
+    # Stores the last cursor position from MOVE state — used for all action gestures
+    # to prevent cursor drift when hand shape changes to form a gesture
+    locked_cursor_pos = (config.frame_width // 2, config.frame_height // 2)
 
     print("AI Gesture Mouse operational. Press 'q' in webcam window to terminate.")
 
@@ -269,7 +276,10 @@ def main() -> None:
             fps = 1.0 / (curr_time - prev_time) if (curr_time - prev_time) > 0 else 30.0
             prev_time = curr_time
 
-            # Hand Tracking
+            # Hand Tracking — pass real timestamp in ms for VIDEO mode accuracy
+            timestamp_ms = int(curr_time * 1000)
+            if hasattr(detector, '_frame_timestamp_ms'):
+                detector._frame_timestamp_ms = timestamp_ms
             frame = detector.find_hands(frame, draw=config.draw_landmarks)
             landmarks = detector.find_positions(frame)
             fingers = detector.fingers_up(landmarks)
@@ -287,18 +297,21 @@ def main() -> None:
                 if not action_mapper.tracking_paused:
                     # Dispatch gesture to mouse controller
                     if active_gesture == GestureType.MOVE:
+                        # Only update locked position while actively moving
+                        locked_cursor_pos = cursor_pos
                         mouse.move_cursor(cursor_pos[0], cursor_pos[1])
                     elif active_gesture == GestureType.LEFT_CLICK:
-                        mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                        # Use locked position — cursor must NOT drift during click gesture
+                        mouse.move_cursor(locked_cursor_pos[0], locked_cursor_pos[1])
                         mouse.left_click()
                     elif active_gesture == GestureType.RIGHT_CLICK:
-                        mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                        mouse.move_cursor(locked_cursor_pos[0], locked_cursor_pos[1])
                         mouse.right_click()
                     elif active_gesture == GestureType.DOUBLE_CLICK:
-                        mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                        mouse.move_cursor(locked_cursor_pos[0], locked_cursor_pos[1])
                         mouse.double_click()
                     elif active_gesture == GestureType.DRAG:
-                        mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                        mouse.move_cursor(locked_cursor_pos[0], locked_cursor_pos[1])
                         mouse.start_drag()
                     elif active_gesture == GestureType.SCROLL:
                         scroll_delta = meta.get("scroll_delta", 0)
