@@ -69,3 +69,95 @@ def test_recognize_scroll():
     gesture2, meta = recognizer.recognize([0, 1, 1, 0, 0], lms2)
     assert gesture2 == GestureType.SCROLL
     assert meta["scroll_delta"] > 0
+
+
+def test_recognize_five_finger_palm_right_click():
+    recognizer = GestureRecognizer(confirm_frames=1)
+    # Right hand mirrored with palm facing camera:
+    # wrist = (300, 400), index_mcp = (260, 250), pinky_mcp = (340, 270)
+    # cross product > 0 -> PALM
+    lms = [[i, 0, 0] for i in range(21)]
+    lms[0] = [0, 300, 400]
+    lms[5] = [5, 260, 250]
+    lms[17] = [17, 340, 270]
+    lms[4] = [4, 200, 250]
+    lms[8] = [8, 260, 100]
+    gesture, meta = recognizer.recognize([1, 1, 1, 1, 1], lms, current_time=1000.0)
+    assert gesture == GestureType.RIGHT_CLICK
+    assert meta.get("palm_orientation") == "PALM"
+
+
+def test_recognize_five_finger_back_double_click():
+    recognizer = GestureRecognizer(confirm_frames=1)
+    # Right hand mirrored with back facing camera:
+    # wrist = (300, 400), index_mcp = (340, 250), pinky_mcp = (260, 270)
+    # cross product < 0 -> BACK
+    lms = [[i, 0, 0] for i in range(21)]
+    lms[0] = [0, 300, 400]
+    lms[5] = [5, 340, 250]
+    lms[17] = [17, 260, 270]
+    lms[4] = [4, 400, 250]
+    lms[8] = [8, 340, 100]
+    gesture, meta = recognizer.recognize([1, 1, 1, 1, 1], lms, current_time=1000.0)
+    assert gesture == GestureType.DOUBLE_CLICK
+    assert meta.get("palm_orientation") == "BACK"
+
+
+def test_scroll_guard_prevents_accidental_double_click():
+    recognizer = GestureRecognizer(confirm_frames=1)
+    # 1. Active scroll frame
+    lms_scroll = build_mock_landmarks(index_pt=(150, 200), middle_pt=(170, 200))
+    recognizer.recognize([0, 1, 1, 0, 0], lms_scroll, current_time=1000.0)
+
+    # 2. Immediately next frame (0.1s later), hand opens into 5 fingers back
+    lms_back = [[i, 0, 0] for i in range(21)]
+    lms_back[0] = [0, 300, 400]
+    lms_back[5] = [5, 340, 250]
+    lms_back[17] = [17, 260, 270]
+    lms_back[4] = [4, 400, 250]
+    lms_back[8] = [8, 340, 100]
+    gesture, _ = recognizer.recognize([1, 1, 1, 1, 1], lms_back, current_time=1000.1)
+    # Must be blocked by scroll guard to prevent accidentally minimizing windows
+    assert gesture != GestureType.DOUBLE_CLICK
+
+
+def test_opening_hand_for_right_click_does_not_fire_left_click():
+    recognizer = GestureRecognizer(confirm_frames=1, pinch_click_threshold=40.0)
+    # Step 1: Hand was pointing, thumb close to index (<40px)
+    lms_close = build_mock_landmarks(thumb_pt=(100, 100), index_pt=(120, 100))
+    g1, _ = recognizer.recognize([1, 1, 0, 0, 0], lms_close, current_time=1000.0)
+
+    # Step 2: User opens hand to 5-finger palm (thumb and index separate >40px, all 5 fingers up)
+    lms_palm = [[i, 0, 0] for i in range(21)]
+    lms_palm[0] = [0, 300, 400]
+    lms_palm[5] = [5, 260, 250]
+    lms_palm[17] = [17, 340, 270]
+    lms_palm[4] = [4, 200, 250]
+    lms_palm[8] = [8, 260, 100]
+    g2, _ = recognizer.recognize([1, 1, 1, 1, 1], lms_palm, current_time=1000.1)
+
+    # Must NOT be LEFT_CLICK! Must be RIGHT_CLICK!
+    assert g2 != GestureType.LEFT_CLICK
+    assert g2 == GestureType.RIGHT_CLICK
+
+
+def test_recognize_index_finger_tap_left_click():
+    recognizer = GestureRecognizer(drag_hold_duration=0.5, click_cooldown=0.1)
+    # Step 1: Index finger bent down (tapped) at t=1000.0
+    # MCP (5) at (100, 300), PIP (6) at (100, 240), TIP (8) bent down at (100, 250)
+    lms_bent = [[i, 0, 0] for i in range(21)]
+    lms_bent[5] = [5, 100, 300]
+    lms_bent[6] = [6, 100, 240]
+    lms_bent[8] = [8, 100, 250]
+    g1, _ = recognizer.recognize([0, 0, 0, 0, 0], lms_bent, current_time=1000.0)
+    assert g1 == GestureType.IDLE  # Pressing down
+
+    # Step 2: Index finger unbends back up at t=1000.15 (<0.5s)
+    # TIP (8) now extended straight at (100, 150)
+    lms_up = [[i, 0, 0] for i in range(21)]
+    lms_up[5] = [5, 100, 300]
+    lms_up[6] = [6, 100, 240]
+    lms_up[8] = [8, 100, 150]
+    g2, _ = recognizer.recognize([0, 1, 0, 0, 0], lms_up, current_time=1000.15)
+    assert g2 == GestureType.LEFT_CLICK
+

@@ -244,6 +244,23 @@ class HandDetector:
 
         return self.landmark_list
 
+    def get_handedness(self, hand_no: int = 0) -> str:
+        """Returns detected hand side ('Right' or 'Left', defaults to 'Right')."""
+        if self.results is None:
+            return "Right"
+        try:
+            if self.use_tasks_api:
+                if hasattr(self.results, "handedness") and self.results.handedness:
+                    if hand_no < len(self.results.handedness):
+                        return self.results.handedness[hand_no][0].category_name
+            else:
+                if hasattr(self.results, "multi_handedness") and self.results.multi_handedness:
+                    if hand_no < len(self.results.multi_handedness):
+                        return self.results.multi_handedness[hand_no].classification[0].label
+        except Exception:
+            pass
+        return "Right"
+
     def fingers_up(
         self,
         landmarks: Optional[List[List[int]]] = None,
@@ -252,6 +269,7 @@ class HandDetector:
         """
         Determines which fingers are raised.
         Returns a list of 5 integers (1 for UP, 0 for DOWN): [Thumb, Index, Middle, Ring, Pinky]
+        Accurate for both front (palm) and back of hand across all orientations.
         """
         lm = landmarks if landmarks is not None else self.landmark_list
         if len(lm) < 21:
@@ -260,18 +278,29 @@ class HandDetector:
         fingers = []
 
         try:
-            # Thumb: compare X coordinates depending on hand orientation
-            # For Right Hand facing camera: tip to the left (smaller x) means open
+            # Thumb: Check X coordinate direction for standard pose,
+            # and verify distance from wrist/pinky MCP to handle back of hand.
+            x_open = False
             if handedness == "Right":
-                if lm[HandLandmarks.THUMB_TIP][1] < lm[HandLandmarks.THUMB_IP][1]:
-                    fingers.append(1)
-                else:
-                    fingers.append(0)
+                x_open = lm[HandLandmarks.THUMB_TIP][1] < lm[HandLandmarks.THUMB_IP][1]
             else:
-                if lm[HandLandmarks.THUMB_TIP][1] > lm[HandLandmarks.THUMB_IP][1]:
-                    fingers.append(1)
-                else:
-                    fingers.append(0)
+                x_open = lm[HandLandmarks.THUMB_TIP][1] > lm[HandLandmarks.THUMB_IP][1]
+
+            # In back-of-hand orientation or rotated hand, thumb tip extends away from pinky MCP
+            d_tip_pinky = math.hypot(
+                lm[HandLandmarks.THUMB_TIP][1] - lm[HandLandmarks.PINKY_MCP][1],
+                lm[HandLandmarks.THUMB_TIP][2] - lm[HandLandmarks.PINKY_MCP][2]
+            )
+            d_ip_pinky = math.hypot(
+                lm[HandLandmarks.THUMB_IP][1] - lm[HandLandmarks.PINKY_MCP][1],
+                lm[HandLandmarks.THUMB_IP][2] - lm[HandLandmarks.PINKY_MCP][2]
+            )
+            geom_open = d_tip_pinky > (d_ip_pinky * 1.08)
+
+            if x_open or geom_open:
+                fingers.append(1)
+            else:
+                fingers.append(0)
 
             # 4 Fingers: check if tip Y coordinate is above PIP Y coordinate (y is 0 at top)
             for tip_id, pip_id in zip(HandLandmarks.FINGER_TIPS[1:], HandLandmarks.FINGER_PIPS[1:]):

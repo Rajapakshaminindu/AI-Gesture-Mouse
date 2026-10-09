@@ -20,20 +20,20 @@ class AppConfig:
     flip_horizontal: bool = True
 
     # Tracking confidence
-    detection_confidence: float = 0.6   # Lower = faster initial detection
-    tracking_confidence: float = 0.5    # Lower = better tracking continuity
+    detection_confidence: float = 0.55  # Lower = faster initial detection
+    tracking_confidence: float = 0.45   # Lower = better tracking continuity
 
     # Coordinate mapping & cursor dynamics
-    frame_margin: int = 90
-    smoothing_factor: float = 4.0       # Reduced from 5 for snappier response
-    deadzone: float = 2.0               # Reduced from 3.5 for less lag
+    frame_margin: int = 80              # Larger active zone = easier to reach screen edges
+    smoothing_factor: float = 5.0       # Smooth cursor movement
+    deadzone: float = 1.8               # Sub-pixel deadzone; eliminates idle drift
     enable_adaptive_smoothing: bool = True
 
     # Gesture thresholds
-    pinch_threshold: float = 45.0       # Easier left click trigger
-    drag_hold_duration: float = 0.35    # Faster drag vs click distinction
-    click_cooldown: float = 0.25        # Slightly faster click response
-    scroll_sensitivity: float = 2.0
+    pinch_threshold: float = 38.0       # Pinch threshold for left click
+    drag_hold_duration: float = 0.40    # Hold 0.4s to enter drag mode
+    click_cooldown: float = 0.20        # Fast click response
+    scroll_sensitivity: float = 2.5
 
     # Analytics & Features
     enable_analytics: bool = True

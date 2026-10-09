@@ -54,13 +54,13 @@ Detailed descriptions and trigger mechanisms for each supported gesture:
 
 | Gesture Action | Hand Landmark Pose | How It Works |
 | :--- | :--- | :--- |
-| **Move Cursor** | ☝️ **Index finger UP**, other fingers folded | The tip of your index finger is tracked and smoothly mapped across screen coordinates. |
-| **Left Click** | 🤏 **Pinch Thumb & Index finger** | Bringing the thumb and index finger together (< 38px) performs a single left click. |
-| **Right Click** | 🖐️ **3 Fingers UP** (Index, Middle, Ring UP) | Raising three fingers triggers a context/right click with a 0.35s debounce cooldown. |
-| **Double Click** | ✌️ **Thumb & Middle finger pinch** | Tapping thumb and middle finger while index is up executes a double click. |
-| **Drag & Drop** | ✊ **Pinch & Hold** (> 0.45s) | Pinching and holding keeps the mouse button down; move to drag and release to drop. |
-| **Scroll Up / Down**| ✌️ **2 Fingers UP** (Peace Sign) | Moving two fingers vertically scrolls documents, web pages, and presentation slides. |
-| **Neutral / Idle** | ✊ **Fist / No fingers extended** | System pauses cursor movement to allow resting your hand without accidental inputs. |
+| **Move Cursor** | ☝️ **Index finger UP**, other fingers folded | The tip of your index finger guides the desktop cursor smoothly with adaptive tremor-filtering. |
+| **Left Click** | 👆 **Tap Index Finger Down** | Bend your index finger tip down briefly (like clicking a real mouse button) and release. |
+| **Drag & Drop** | ✊ **Hold Index Finger Bent** (> 0.40s) | Hold index finger bent to grab items; move hand to drag and straighten finger to release. |
+| **Scroll Up / Down**| ✌️ **2 Fingers UP** (Index + Middle) | Hold up two fingers: tilt slightly UP/DOWN to glide through documents, or flick for quick scrolling. |
+| **Right Click** | 🖐️ **Open Palm** (5 fingers facing camera) | Show your front open palm to camera (or 3 fingers up: index, middle, ring). |
+| **Double Click** | 🤚 **Open Hand Back** (5 fingers, back facing camera) | Turn your hand around and show the back of your open hand to trigger double click. |
+| **Neutral / Idle** | ✊ **Fist / Lower hand** | System pauses movement to let you rest your hand without accidental clicks. |
 
 > 📖 *For comprehensive documentation and tips on lighting and camera placement, see [docs/GESTURE_GUIDE.md](docs/GESTURE_GUIDE.md).*
 

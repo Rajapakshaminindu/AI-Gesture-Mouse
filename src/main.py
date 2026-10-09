@@ -71,20 +71,26 @@ def draw_splash_screen(frame: np.ndarray, elapsed_time: float, total_duration: f
     cv2.rectangle(overlay, (0, 0), (w, h), (15, 15, 20), -1)
 
     # Accent decorative box
-    box_w, box_h = min(520, w - 40), 220
+    box_w, box_h = min(540, w - 40), 260
     x1, y1 = (w - box_w) // 2, (h - box_h) // 2
     cv2.rectangle(overlay, (x1, y1), (x1 + box_w, y1 + box_h), (35, 35, 45), -1)
     cv2.rectangle(overlay, (x1, y1), (x1 + box_w, y1 + box_h), (0, 210, 255), 2)
 
     # Header and Instructions
-    cv2.putText(overlay, "AI GESTURE MOUSE", (x1 + 40, y1 + 60),
-                cv2.FONT_HERSHEY_DUPLEX, 1.1, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.putText(overlay, "- Point index finger to guide cursor", (x1 + 40, y1 + 110),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 220, 255), 1, cv2.LINE_AA)
-    cv2.putText(overlay, "- Pinch thumb + index finger to click", (x1 + 40, y1 + 145),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 220, 255), 1, cv2.LINE_AA)
-    cv2.putText(overlay, "- Quick horizontal flick for browser swipe", (x1 + 40, y1 + 180),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (180, 220, 255), 1, cv2.LINE_AA)
+    cv2.putText(overlay, "AI GESTURE MOUSE", (x1 + 40, y1 + 55),
+                cv2.FONT_HERSHEY_DUPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
+    cv2.putText(overlay, "- Point index finger to guide cursor", (x1 + 40, y1 + 90),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.52, (180, 220, 255), 1, cv2.LINE_AA)
+    cv2.putText(overlay, "- Tap index finger down = Left Click (Hold = Drag)", (x1 + 40, y1 + 118),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.52, (180, 220, 255), 1, cv2.LINE_AA)
+    cv2.putText(overlay, "- 2 Fingers (Index+Middle) = Ultra-Smooth Scroll", (x1 + 40, y1 + 146),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 255, 255), 1, cv2.LINE_AA)
+    cv2.putText(overlay, "- Open palm (front 5 fingers) = Right Click", (x1 + 40, y1 + 174),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.52, (180, 220, 255), 1, cv2.LINE_AA)
+    cv2.putText(overlay, "- Open hand (back 5 fingers)  = Double Click", (x1 + 40, y1 + 202),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.52, (180, 220, 255), 1, cv2.LINE_AA)
+    cv2.putText(overlay, "Tip: Window stays pinned on top. Press 'm' to resize.", (x1 + 40, y1 + 230),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.46, (140, 200, 140), 1, cv2.LINE_AA)
 
     # Calculate fade out over the final 0.5s
     remaining = total_duration - elapsed_time
@@ -129,7 +135,7 @@ def draw_hud(
         GestureType.RIGHT_CLICK: (0, 165, 255),  # Orange
         GestureType.DOUBLE_CLICK: (255, 0, 255), # Magenta
         GestureType.DRAG: (0, 140, 255),         # Deep Orange
-        GestureType.SCROLL: (255, 255, 0),       # Cyan
+        GestureType.SCROLL: (0, 255, 255),       # Bright Yellow/Cyan
         GestureType.SWIPE_LEFT: (255, 120, 50),  # Blue-Cyan
         GestureType.SWIPE_RIGHT: (255, 120, 50),
         GestureType.IDLE: (220, 220, 220)        # White
@@ -144,14 +150,41 @@ def draw_hud(
         cv2.FONT_HERSHEY_SIMPLEX, 0.58, (255, 255, 255), 2, cv2.LINE_AA
     )
 
-    # Telemetry Info (FPS & Smoothing)
+    # Telemetry Info (FPS, Smoothing, Palm Orientation)
+    orientation_hint = meta.get("palm_orientation", "")
+    orient_label = f" | {orientation_hint}" if orientation_hint and orientation_hint != "UNKNOWN" else ""
     cv2.putText(
-        frame, f"FPS {int(fps)} | SM {config.smoothing_factor}", (240, 43),
-        cv2.FONT_HERSHEY_SIMPLEX, 0.45, (160, 200, 240), 1, cv2.LINE_AA
+        frame, f"FPS {int(fps)} | SM {config.smoothing_factor}{orient_label}", (210, 43),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.44, (160, 200, 240), 1, cv2.LINE_AA
     )
 
-    # 3. Click Ring Trigger
-    if active_gesture in (GestureType.LEFT_CLICK, GestureType.RIGHT_CLICK):
+    # 3. Dedicated Scroll HUD Widget
+    if active_gesture == GestureType.SCROLL:
+        scroll_mode = meta.get("scroll_mode", "HOLD")
+        scroll_delta = meta.get("scroll_delta", 0)
+        s_box_w, s_box_h = 240, 38
+        s_x = (w - s_box_w) // 2
+        s_y = h - s_box_h - 18
+        s_overlay = frame.copy()
+        cv2.rectangle(s_overlay, (s_x, s_y), (s_x + s_box_w, s_y + s_box_h), (20, 20, 25), -1)
+        cv2.rectangle(s_overlay, (s_x, s_y), (s_x + s_box_w, s_y + s_box_h), (0, 255, 255), 2)
+        cv2.addWeighted(s_overlay, 0.80, frame, 0.20, 0, frame)
+
+        if scroll_delta > 0 or scroll_mode == "UP":
+            s_text = f"SCROLL UP  ▲"
+            s_color = (0, 255, 128)
+        elif scroll_delta < 0 or scroll_mode == "DOWN":
+            s_text = f"SCROLL DOWN  ▼"
+            s_color = (0, 200, 255)
+        else:
+            s_text = "SCROLL: READY"
+            s_color = (255, 255, 255)
+
+        cv2.putText(frame, s_text, (s_x + 24, s_y + 26),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.62, s_color, 2, cv2.LINE_AA)
+
+    # 4. Click Ring Trigger
+    if active_gesture in (GestureType.LEFT_CLICK, GestureType.RIGHT_CLICK, GestureType.DOUBLE_CLICK):
         click_animation_counter = 6
         click_animation_pos = cursor_pos
 
@@ -255,6 +288,69 @@ def main() -> None:
     locked_cursor_pos = (config.frame_width // 2, config.frame_height // 2)
 
     print("AI Gesture Mouse operational. Press 'q' in webcam window to terminate.")
+    print("  'm' = toggle compact/full window size | 'h' = move window to corner")
+
+    # ── Window setup: always-on-top, compact, bottom-right corner ─────────────
+    WIN_TITLE = "AI Gesture Mouse"
+    COMPACT_W, COMPACT_H = 340, 255   # compact preview that stays out of the way
+
+    cv2.namedWindow(WIN_TITLE, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(WIN_TITLE, COMPACT_W, COMPACT_H)
+    try:
+        cv2.setWindowProperty(WIN_TITLE, cv2.WND_PROP_TOPMOST, 1)
+    except Exception:
+        pass
+
+    # Position: bottom-right corner (12px margin from edges, above taskbar)
+    try:
+        import ctypes
+        user32 = ctypes.windll.user32
+        screen_w = user32.GetSystemMetrics(0)
+        screen_h = user32.GetSystemMetrics(1)
+        win_x = screen_w - COMPACT_W - 12
+        win_y = screen_h - COMPACT_H - 65   # 65px offset for Windows taskbar
+    except Exception:
+        win_x, win_y = 10, 10
+
+    cv2.moveWindow(WIN_TITLE, win_x, win_y)
+
+    def set_always_on_top(win_name: str) -> None:
+        """
+        Forces the OpenCV preview window to stay pinned on top of ALL applications
+        (PDF readers, browsers, full screen apps) without stealing keyboard/mouse focus.
+        """
+        try:
+            cv2.setWindowProperty(win_name, cv2.WND_PROP_TOPMOST, 1)
+        except Exception:
+            pass
+
+        try:
+            import ctypes
+            hwnd = ctypes.windll.user32.FindWindowW(None, win_name)
+            if hwnd:
+                GWL_EXSTYLE = -20
+                cur_style = ctypes.windll.user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+                # WS_EX_TOPMOST = 0x08 (float on top of all other windows)
+                # WS_EX_TOOLWINDOW = 0x80 (tool overlay, doesn't hide when another window gains focus)
+                WS_EX_TOPMOST = 0x00000008
+                WS_EX_TOOLWINDOW = 0x00000080
+                new_style = (cur_style | WS_EX_TOPMOST | WS_EX_TOOLWINDOW) & ~0x08000000
+                ctypes.windll.user32.SetWindowLongW(hwnd, GWL_EXSTYLE, new_style)
+
+                HWND_TOPMOST = -1
+                SWP_NOMOVE = 0x0002
+                SWP_NOSIZE = 0x0001
+                SWP_NOACTIVATE = 0x0010
+                SWP_SHOWWINDOW = 0x0040
+                ctypes.windll.user32.SetWindowPos(
+                    hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW
+                )
+        except Exception:
+            pass
+
+    _last_topmost_assert = 0.0
+    _is_compact = True
 
     try:
         while True:
@@ -282,7 +378,8 @@ def main() -> None:
                 detector._frame_timestamp_ms = timestamp_ms
             frame = detector.find_hands(frame, draw=config.draw_landmarks)
             landmarks = detector.find_positions(frame)
-            fingers = detector.fingers_up(landmarks)
+            handedness = detector.get_handedness()
+            fingers = detector.fingers_up(landmarks, handedness=handedness)
 
             active_gesture = GestureType.IDLE
             meta = {}
@@ -291,7 +388,9 @@ def main() -> None:
             if landmarks and len(landmarks) >= 21:
                 # landmarks[8] = [id, x, y]; use [1],[2] for pixel coords
                 cursor_pos = (landmarks[8][1], landmarks[8][2])
-                active_gesture, meta = recognizer.recognize(fingers, landmarks, current_time=curr_time)
+                active_gesture, meta = recognizer.recognize(
+                    fingers, landmarks, current_time=curr_time, handedness=handedness
+                )
 
                 # Check for pause tracking status via ActionMapper
                 if not action_mapper.tracking_paused:
@@ -315,7 +414,8 @@ def main() -> None:
                         mouse.start_drag()
                     elif active_gesture == GestureType.SCROLL:
                         scroll_delta = meta.get("scroll_delta", 0)
-                        mouse.scroll(int(scroll_delta * config.scroll_sensitivity))
+                        if scroll_delta != 0:
+                            mouse.scroll(scroll_delta)
                     elif active_gesture in (GestureType.SWIPE_LEFT, GestureType.SWIPE_RIGHT):
                         action_mapper.trigger_action(active_gesture.value, current_time=curr_time)
                     else:
@@ -337,11 +437,45 @@ def main() -> None:
             if elapsed < 2.0:
                 draw_splash_screen(frame, elapsed, total_duration=2.0)
 
-            cv2.imshow("AI Gesture Mouse", frame)
+            cv2.imshow(WIN_TITLE, frame)
+
+            # 1. Check if user closed the window ('X' button on title bar)
+            try:
+                if cv2.getWindowProperty(WIN_TITLE, cv2.WND_PROP_VISIBLE) < 1:
+                    print("\n[Info] Window closed by user.")
+                    break
+            except Exception:
+                pass
+
+            # 2. Emergency Global Esc key (VK_ESCAPE = 0x1B) - works anywhere on Windows
+            try:
+                import ctypes
+                if ctypes.windll.user32.GetAsyncKeyState(0x1B) & 0x8000:
+                    print("\n[Info] Emergency exit: Esc pressed.")
+                    break
+            except Exception:
+                pass
+
+            # Re-assert always-on-top every 1 second so no application can hide it
+            if curr_time - _last_topmost_assert > 1.0:
+                set_always_on_top(WIN_TITLE)
+                _last_topmost_assert = curr_time
 
             key = cv2.waitKey(1) & 0xFF
             if key in (ord('q'), 27):
                 break
+            elif key == ord('m'):   # toggle compact / full size
+                _is_compact = not _is_compact
+                if _is_compact:
+                    cv2.resizeWindow(WIN_TITLE, COMPACT_W, COMPACT_H)
+                    cv2.moveWindow(WIN_TITLE, win_x, win_y)
+                else:
+                    cv2.resizeWindow(WIN_TITLE, config.frame_width, config.frame_height)
+                    cv2.moveWindow(WIN_TITLE, 10, 10)
+                set_always_on_top(WIN_TITLE)
+            elif key == ord('h'):   # snap back to corner
+                cv2.moveWindow(WIN_TITLE, win_x, win_y)
+                set_always_on_top(WIN_TITLE)
 
     except KeyboardInterrupt:
         print("\n[Info] Interrupted by user.")
