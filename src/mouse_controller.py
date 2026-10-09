@@ -41,6 +41,8 @@ class MouseController:
         screen_size: Optional[Tuple[int, int]] = None,
         frame_size: Tuple[int, int] = (640, 480),
         frame_margin: int = 100,
+        frame_margin_top: Optional[int] = None,
+        frame_margin_bottom: Optional[int] = None,
         smoothing_factor: float = 5.0,
         deadzone: float = 3.0,
         enable_adaptive_smoothing: bool = True
@@ -57,6 +59,8 @@ class MouseController:
 
         self.cam_w, self.cam_h = frame_size
         self.frame_margin = frame_margin
+        self.frame_margin_top = frame_margin_top if frame_margin_top is not None else frame_margin
+        self.frame_margin_bottom = frame_margin_bottom if frame_margin_bottom is not None else frame_margin
         self.smoothing = max(1.0, smoothing_factor)
         self.deadzone = deadzone
         self.enable_adaptive_smoothing = enable_adaptive_smoothing
@@ -116,8 +120,8 @@ class MouseController:
         if self.smoothing <= 1.0:
             x_min = self.frame_margin
             x_max = self.cam_w - self.frame_margin
-            y_min = self.frame_margin
-            y_max = self.cam_h - self.frame_margin
+            y_min = self.frame_margin_top
+            y_max = self.cam_h - self.frame_margin_bottom
 
             clamped_x = max(x_min, min(x, x_max))
             clamped_y = max(y_min, min(y, y_max))
@@ -137,8 +141,8 @@ class MouseController:
         # ── Stage 2: Coordinate mapping (camera ROI → screen space) ────────────
         x_min = self.frame_margin
         x_max = self.cam_w - self.frame_margin
-        y_min = self.frame_margin
-        y_max = self.cam_h - self.frame_margin
+        y_min = self.frame_margin_top
+        y_max = self.cam_h - self.frame_margin_bottom
 
         clamped_x = max(x_min, min(fx, x_max))
         clamped_y = max(y_min, min(fy, y_max))

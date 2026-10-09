@@ -33,6 +33,7 @@ from src.mouse_controller import MouseController
 from src.gesture_recognizer import GestureRecognizer, GestureType
 from src.action_mapper import ActionMapper
 from src.analytics import GestureAnalytics
+from src.launcher_ui import LauncherWindow
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -79,15 +80,15 @@ def draw_splash_screen(frame: np.ndarray, elapsed_time: float, total_duration: f
     # Header and Instructions
     cv2.putText(overlay, "AI GESTURE MOUSE", (x1 + 40, y1 + 55),
                 cv2.FONT_HERSHEY_DUPLEX, 1.0, (255, 255, 255), 2, cv2.LINE_AA)
-    cv2.putText(overlay, "- Point index finger to guide cursor", (x1 + 40, y1 + 90),
+    cv2.putText(overlay, "- Point index finger = Move cursor", (x1 + 40, y1 + 90),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.52, (180, 220, 255), 1, cv2.LINE_AA)
-    cv2.putText(overlay, "- Tap index finger down = Left Click (Hold = Drag)", (x1 + 40, y1 + 118),
+    cv2.putText(overlay, "- 2 Fingers (Index+Middle) = Left Click (one-shot)", (x1 + 40, y1 + 118),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.52, (180, 220, 255), 1, cv2.LINE_AA)
-    cv2.putText(overlay, "- 2 Fingers (Index+Middle) = Ultra-Smooth Scroll", (x1 + 40, y1 + 146),
+    cv2.putText(overlay, "- 3 Fingers (Index+Middle+Ring) = Smooth Scroll", (x1 + 40, y1 + 146),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 255, 255), 1, cv2.LINE_AA)
-    cv2.putText(overlay, "- Open palm (front 5 fingers) = Right Click", (x1 + 40, y1 + 174),
+    cv2.putText(overlay, "- Thumbs Up = Right Click", (x1 + 40, y1 + 174),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.52, (180, 220, 255), 1, cv2.LINE_AA)
-    cv2.putText(overlay, "- Open hand (back 5 fingers)  = Double Click", (x1 + 40, y1 + 202),
+    cv2.putText(overlay, "- Open hand (back 5 fingers) = Double Click", (x1 + 40, y1 + 202),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.52, (180, 220, 255), 1, cv2.LINE_AA)
     cv2.putText(overlay, "Tip: Window stays pinned on top. Press 'm' to resize.", (x1 + 40, y1 + 230),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.46, (140, 200, 140), 1, cv2.LINE_AA)
@@ -112,8 +113,9 @@ def draw_hud(
     h, w, _ = frame.shape
 
     # 1. Active Interaction Boundary & Crosshair
-    x_min, y_min = config.frame_margin, config.frame_margin
-    x_max, y_max = w - config.frame_margin, h - config.frame_margin
+    x_min, x_max = config.frame_margin, w - config.frame_margin
+    y_min = getattr(config, "frame_margin_top", config.frame_margin)
+    y_max = h - getattr(config, "frame_margin_bottom", config.frame_margin)
     cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (70, 70, 70), 1)
 
     # Center Crosshair
@@ -241,6 +243,15 @@ def open_working_camera(preferred_idx: int, width: int, height: int) -> tuple[cv
 
 
 def main() -> None:
+    # ── Show Launcher UI first ────────────────────────────────────────────────
+    launcher = LauncherWindow()
+    started = launcher.show()     # blocks until Start clicked or window closed
+    launcher.destroy()
+
+    if not started:
+        print("[Info] Launcher closed without starting. Exiting.")
+        sys.exit(0)
+
     # Verify dependencies
     if not CV2_AVAILABLE:
         print("[Error] OpenCV is required. Please install it: pip install -r requirements.txt")
@@ -273,6 +284,8 @@ def main() -> None:
     mouse = MouseController(
         frame_size=(config.frame_width, config.frame_height),
         frame_margin=config.frame_margin,
+        frame_margin_top=config.frame_margin_top,
+        frame_margin_bottom=config.frame_margin_bottom,
         smoothing_factor=config.smoothing_factor,
         deadzone=config.deadzone,
         enable_adaptive_smoothing=config.enable_adaptive_smoothing
@@ -351,6 +364,7 @@ def main() -> None:
 
     _last_topmost_assert = 0.0
     _is_compact = True
+    _window_closed = False   # set True the moment the user clicks X
 
     try:
         while True:
@@ -409,9 +423,6 @@ def main() -> None:
                     elif active_gesture == GestureType.DOUBLE_CLICK:
                         mouse.move_cursor(locked_cursor_pos[0], locked_cursor_pos[1])
                         mouse.double_click()
-                    elif active_gesture == GestureType.DRAG:
-                        mouse.move_cursor(locked_cursor_pos[0], locked_cursor_pos[1])
-                        mouse.start_drag()
                     elif active_gesture == GestureType.SCROLL:
                         scroll_delta = meta.get("scroll_delta", 0)
                         if scroll_delta != 0:
@@ -419,9 +430,9 @@ def main() -> None:
                     elif active_gesture in (GestureType.SWIPE_LEFT, GestureType.SWIPE_RIGHT):
                         action_mapper.trigger_action(active_gesture.value, current_time=curr_time)
                     else:
-                        # IDLE or drag released – if drag was active, end it
-                        if mouse.is_dragging:
-                            mouse.end_drag()
+                        # IDLE / neutral — no action
+                        pass
+
 
             # Record Telemetry Frame
             if analytics is not None:
@@ -437,32 +448,10 @@ def main() -> None:
             if elapsed < 2.0:
                 draw_splash_screen(frame, elapsed, total_duration=2.0)
 
-            cv2.imshow(WIN_TITLE, frame)
-
-            # 1. Check if user closed the window ('X' button on title bar)
-            try:
-                if cv2.getWindowProperty(WIN_TITLE, cv2.WND_PROP_VISIBLE) < 1:
-                    print("\n[Info] Window closed by user.")
-                    break
-            except Exception:
-                pass
-
-            # 2. Emergency Global Esc key (VK_ESCAPE = 0x1B) - works anywhere on Windows
-            try:
-                import ctypes
-                if ctypes.windll.user32.GetAsyncKeyState(0x1B) & 0x8000:
-                    print("\n[Info] Emergency exit: Esc pressed.")
-                    break
-            except Exception:
-                pass
-
-            # Re-assert always-on-top every 1 second so no application can hide it
-            if curr_time - _last_topmost_assert > 1.0:
-                set_always_on_top(WIN_TITLE)
-                _last_topmost_assert = curr_time
-
+            # ── 1. Check keyboard & window-close BEFORE imshow ────────────────
             key = cv2.waitKey(1) & 0xFF
             if key in (ord('q'), 27):
+                print("\n[Info] Quit key pressed.")
                 break
             elif key == ord('m'):   # toggle compact / full size
                 _is_compact = not _is_compact
@@ -476,6 +465,35 @@ def main() -> None:
             elif key == ord('h'):   # snap back to corner
                 cv2.moveWindow(WIN_TITLE, win_x, win_y)
                 set_always_on_top(WIN_TITLE)
+
+            # ── 2. Detect X-button close BEFORE showing next frame ────────────
+            # IMPORTANT: cv2.imshow() RECREATES a destroyed window, so we must
+            # check visibility first and break before imshow is called again.
+            if not _window_closed:
+                try:
+                    if cv2.getWindowProperty(WIN_TITLE, cv2.WND_PROP_VISIBLE) < 1:
+                        _window_closed = True
+                        print("\n[Info] Window closed by user.")
+                        break
+                except Exception:
+                    pass
+
+            # ── 3. Emergency Esc key (works even when window is not focused) ──
+            try:
+                import ctypes
+                if ctypes.windll.user32.GetAsyncKeyState(0x1B) & 0x8000:
+                    print("\n[Info] Emergency exit: Esc pressed.")
+                    break
+            except Exception:
+                pass
+
+            # ── 4. Render frame ───────────────────────────────────────────────
+            cv2.imshow(WIN_TITLE, frame)
+
+            # ── 5. Re-assert always-on-top every 1 second ─────────────────────
+            if not _window_closed and curr_time - _last_topmost_assert > 1.0:
+                set_always_on_top(WIN_TITLE)
+                _last_topmost_assert = curr_time
 
     except KeyboardInterrupt:
         print("\n[Info] Interrupted by user.")

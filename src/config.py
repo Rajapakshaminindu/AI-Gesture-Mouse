@@ -24,7 +24,9 @@ class AppConfig:
     tracking_confidence: float = 0.45   # Lower = better tracking continuity
 
     # Coordinate mapping & cursor dynamics
-    frame_margin: int = 80              # Larger active zone = easier to reach screen edges
+    frame_margin: int = 70              # Horizontal margin for reaching left/right edges
+    frame_margin_top: int = 60          # Top margin for reaching titlebars/tabs easily
+    frame_margin_bottom: int = 150      # Bottom margin: accounts for upright hand posture so taskbar is reached comfortably
     smoothing_factor: float = 5.0       # Smooth cursor movement
     deadzone: float = 1.8               # Sub-pixel deadzone; eliminates idle drift
     enable_adaptive_smoothing: bool = True
@@ -56,6 +58,8 @@ class AppConfig:
         self.frame_width = max(100, int(self.frame_width))
         self.frame_height = max(100, int(self.frame_height))
         self.frame_margin = max(0, int(self.frame_margin))
+        self.frame_margin_top = max(0, int(self.frame_margin_top))
+        self.frame_margin_bottom = max(0, int(self.frame_margin_bottom))
         self.smoothing_factor = max(1.0, float(self.smoothing_factor))
         self.deadzone = max(0.0, float(self.deadzone))
         self.pinch_threshold = max(5.0, float(self.pinch_threshold))

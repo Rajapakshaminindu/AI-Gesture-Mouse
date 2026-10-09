@@ -2,21 +2,16 @@
 Gesture Classification Engine and State Machine — Enhanced Edition.
 
 Gesture Map:
-  ☝️  Index only              → MOVE cursor
-  🤏  Pinch (thumb+index)     → LEFT CLICK (quick) / DRAG (hold)
-  🖐️  All 5 fingers, PALM     → RIGHT CLICK  (front-of-hand facing camera)
-  🖐️  All 5 fingers, BACK     → DOUBLE CLICK (back-of-hand facing camera)
-  ✌️  Index + middle, ring    → SCROLL (vertical hand movement)
-       curled (direct geometry)
-  ✊  Fist                    → IDLE
+  ☝️  Index only                      → MOVE cursor
+  ✌️  2 fingers (Index + Middle)      → LEFT CLICK (one-shot latched)
+  👍  Thumbs Up                       → RIGHT CLICK
+  🖐️  All 5 fingers, BACK             → DOUBLE CLICK (back-of-hand facing camera)
+  3️⃣  3 fingers (Index + Mid + Ring)  → SCROLL (vertical hand movement)
+  Neutral / unrecognised              → IDLE (no interaction)
 
-Scroll detection uses direct landmark Y comparison (ring tip vs ring MCP)
-instead of the binary fingers_up result, which is unreliable when the ring
-finger is partially raised. This makes peace-sign detection robust.
-
-Includes per-gesture cooldown debounce, temporal drag state tracking,
+Includes per-gesture cooldown debounce, temporal state latching,
 velocity-based swipe detection, multi-frame confirmation buffer, and
-a scroll-transition guard that prevents window-minimize accidents.
+a scroll-transition guard that prevents accidental clicks.
 """
 
 from enum import Enum
@@ -48,6 +43,7 @@ class GestureRecognizer:
         self,
         pinch_click_threshold: float = 48.0,
         drag_hold_duration: float = 0.40,
+        min_click_duration: float = 0.05,
         click_cooldown: float = 0.22,
         scroll_sensitivity: float = 2.0,
         swipe_velocity_threshold: float = 380.0,
@@ -57,6 +53,7 @@ class GestureRecognizer:
     ):
         self.pinch_click_threshold = pinch_click_threshold
         self.drag_hold_duration = drag_hold_duration
+        self.min_click_duration = min_click_duration
         self.click_cooldown = click_cooldown
         self.scroll_sensitivity = scroll_sensitivity
         self.swipe_velocity_threshold = swipe_velocity_threshold
@@ -96,6 +93,11 @@ class GestureRecognizer:
         # ── Scroll transition guard ─────────────────────────────────────────────
         self._last_scroll_time: float = 0.0
         self._scroll_guard_duration: float = 0.80
+
+        # ── Two-finger one-shot click latch & transition debounce ──────────────
+        self._two_finger_click_fired: bool = False
+        self._two_finger_start_time: Optional[float] = None
+        self._two_finger_confirm_duration: float = 0.030  # 30ms: balanced fast click response
 
         # Mutual click lockout: prevents Left Click and Right Click from firing together
         self._last_any_click_time: float = 0.0
@@ -233,38 +235,96 @@ class GestureRecognizer:
             return ring_binary == 0   # safe fallback
 
     # ─────────────────────────────────────────────────────────────────────────
-    #  Index Finger Bend / Tap detection (for natural mouse click)
+    #  Thumbs Up detection (for right click)
     # ─────────────────────────────────────────────────────────────────────────
 
-    def _is_index_finger_bent(self, landmarks: List[List[int]]) -> bool:
+    def _is_thumbs_up(self, landmarks: List[List[int]], fingers: List[int]) -> bool:
         """
-        Determines if the index finger is bent/tapped downward (like clicking a mouse button).
-        Uses a scale-invariant ratio of tip-to-MCP distance over PIP-to-MCP distance,
-        and vertical tip-vs-PIP comparison.
+        Returns True if the hand is making a clean thumbs-up gesture.
+
+        Geometry rules:
+          1. Hand must NOT be pinching: thumb tip and index tip must be well separated.
+          2. Thumb tip must be clearly ABOVE the wrist and above thumb MCP (pointing straight up).
+          3. Thumb tip must be significantly higher (smaller Y) than index tip and all other fingers.
+          4. All four non-thumb fingers (index, middle, ring, pinky) must be curled into a fist.
         """
         if not landmarks or len(landmarks) < 21:
             return False
         try:
-            def pt(idx):
-                p = landmarks[idx]
-                return (float(p[1]), float(p[2])) if len(p) == 3 else (float(p[0]), float(p[1]))
+            slot = 2 if len(landmarks[0]) == 3 else 1  # Y-coordinate index
 
-            p5 = pt(5)  # INDEX_MCP
-            p6 = pt(6)  # INDEX_PIP
-            p8 = pt(8)  # INDEX_TIP
+            wrist_y     = float(landmarks[0][slot])   # lm 0  = WRIST
+            thumb_mcp_y = float(landmarks[2][slot])   # lm 2  = THUMB_MCP
+            thumb_tip_y = float(landmarks[4][slot])   # lm 4  = THUMB_TIP
+            index_tip_y = float(landmarks[8][slot])   # lm 8  = INDEX_TIP
 
-            d_tip_mcp = math.hypot(p8[0] - p5[0], p8[1] - p5[1])
-            d_pip_mcp = math.hypot(p6[0] - p5[0], p6[1] - p5[1])
-
-            if d_pip_mcp < 1.0:
+            # 1. Pinch guard: if thumb and index tips are close, it is a PINCH, NEVER a thumbs-up!
+            pinch_dist = self._euclidean_distance(landmarks[4], landmarks[8])
+            if pinch_dist < (self.pinch_click_threshold + 15.0):
                 return False
 
-            ratio = d_tip_mcp / d_pip_mcp
-            # Extended straight index finger: ratio is ~2.2 - 2.8
-            # Bent index finger (air click): ratio drops < 1.30
-            y_bent = (p8[1] >= p6[1] - 8)
+            # 2. Thumb tip must be clearly above the wrist (Y decreases upward)
+            if not (wrist_y - thumb_tip_y > 35):
+                return False
 
-            return (ratio < 1.30) or y_bent
+            # 3. Thumb tip must be above the thumb MCP (thumb extended upward)
+            if not (thumb_tip_y < thumb_mcp_y - 10):
+                return False
+
+            # 4. In a thumbs-up, thumb tip is high above the curled index finger
+            if not (thumb_tip_y < index_tip_y - 25):
+                return False
+
+            # 5. Non-thumb fingers must be curled: tip Y >= PIP Y
+            # Pairs: (tip_lm, pip_lm) for index, middle, ring, pinky
+            curl_pairs = [(8, 6), (12, 10), (16, 14), (20, 18)]
+            for tip_idx, pip_idx in curl_pairs:
+                tip_y = float(landmarks[tip_idx][slot])
+                pip_y = float(landmarks[pip_idx][slot])
+                # Tip must be AT or BELOW the PIP joint (curled down)
+                if tip_y < pip_y - 8:
+                    return False
+
+            return True
+        except Exception:
+            return False
+
+    # ─────────────────────────────────────────────────────────────────────────
+    #  Multi-finger helpers (2-finger click & 3-finger scroll)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _is_three_fingers(self, landmarks: List[List[int]], fingers: List[int]) -> bool:
+        """Returns True if index, middle, and ring are extended, and pinky is curled down."""
+        if not landmarks or len(landmarks) < 21:
+            return False
+        thumb, index, middle, ring, pinky = fingers if len(fingers) == 5 else [0, 0, 0, 0, 0]
+        if index == 1 and middle == 1 and ring == 1 and pinky == 0:
+            return True
+        try:
+            slot = 2 if len(landmarks[0]) == 3 else 1
+            # Index, Middle, Ring tips must be above their PIP joints
+            idx_up = float(landmarks[8][slot]) < float(landmarks[6][slot])
+            mid_up = float(landmarks[12][slot]) < float(landmarks[10][slot])
+            rng_up = float(landmarks[16][slot]) < float(landmarks[14][slot])
+            pky_dn = float(landmarks[20][slot]) >= float(landmarks[18][slot]) - 10
+            return idx_up and mid_up and rng_up and pky_dn
+        except Exception:
+            return False
+
+    def _is_two_fingers(self, landmarks: List[List[int]], fingers: List[int]) -> bool:
+        """Returns True if only index and middle are extended, and ring and pinky are curled down."""
+        if not landmarks or len(landmarks) < 21:
+            return False
+        thumb, index, middle, ring, pinky = fingers if len(fingers) == 5 else [0, 0, 0, 0, 0]
+        if index == 1 and middle == 1 and ring == 0 and pinky == 0:
+            return True
+        try:
+            slot = 2 if len(landmarks[0]) == 3 else 1
+            idx_up = float(landmarks[8][slot]) < float(landmarks[6][slot])
+            mid_up = float(landmarks[12][slot]) < float(landmarks[10][slot])
+            rng_dn = float(landmarks[16][slot]) >= float(landmarks[14][slot]) - 6
+            pky_dn = float(landmarks[20][slot]) >= float(landmarks[18][slot]) - 6
+            return idx_up and mid_up and rng_dn and pky_dn
         except Exception:
             return False
 
@@ -306,94 +366,31 @@ class GestureRecognizer:
                     return swipe, {"velocity": swipe.value}
                 return GestureType.IDLE, {"status": "cooldown_blocked"}
 
-        # ── 2. LEFT CLICK / DRAG — Index Finger Bend / Tap (or Pinch) ─────────
-        pinch_dist = self._euclidean_distance(landmarks[4], landmarks[8])
-        meta["pinch_distance"] = pinch_dist
+        # ── 2. THUMBS UP RIGHT CLICK ──────────────────────────────────────────
+        if self._is_thumbs_up(landmarks, fingers):
+            self._two_finger_click_fired = False
+            if self._confirm("RIGHT_CLICK"):
+                if not self._is_cooling_down(GestureType.RIGHT_CLICK, now) and (now - self._last_any_click_time) >= 0.35:
+                    self._record_trigger(GestureType.RIGHT_CLICK, now)
+                    self._last_any_click_time = now
+                    self._clear_buffer()
+                    self._was_scrolling = False
+                    return GestureType.RIGHT_CLICK, meta
+                return GestureType.IDLE, {"status": "cooldown_blocked"}
+            return GestureType.IDLE, {"status": "confirming_right_click", **meta}
 
-        # Check if index finger is bent/tapped downward
-        index_bent = self._is_index_finger_bent(landmarks)
-        meta["index_bent"] = index_bent
-
-        # If hand has ring or pinky raised, or is opening into an open hand pose,
-        # it CANNOT be a click. Cancel any pending press immediately.
-        if ring == 1 or pinky == 1 or (middle == 1 and ring == 1):
-            self.pinch_start_time = None
-            self.is_dragging = False
-
-        # Left click press triggers if user is in pointing mode (ring & pinky down)
-        # and EITHER bends index finger down OR pinches thumb & index
-        is_pressing = False
-        if ring == 0 and pinky == 0:
-            if index_bent or (pinch_dist < self.pinch_click_threshold):
-                is_pressing = True
-
-        if is_pressing:
-            self._clear_buffer()
-            self._was_scrolling = False
-            if self.pinch_start_time is None:
-                self.pinch_start_time = now
-                self.swipe_history.clear()
-
-            hold_duration = now - self.pinch_start_time
-            meta["pinch_hold_time"] = hold_duration
-
-            if hold_duration >= self.drag_hold_duration:
-                self.is_dragging = True
-                meta["drag_duration"] = hold_duration
-                return GestureType.DRAG, meta
-            else:
-                return GestureType.IDLE, meta
-        else:
-            if self.pinch_start_time is not None:
-                hold_duration = now - self.pinch_start_time
-                self.pinch_start_time = None
-
-                if self.is_dragging:
-                    self.is_dragging = False
-                    return GestureType.IDLE, {"status": "drag_released"}
-
-                # Trigger left click on release (unbend / unpinch) while ring and pinky stay down
-                if hold_duration < self.drag_hold_duration and ring == 0 and pinky == 0:
-                    if not self._is_cooling_down(GestureType.LEFT_CLICK, now) and (now - self._last_any_click_time) >= 0.35:
-                        self._record_trigger(GestureType.LEFT_CLICK, now)
-                        self._last_any_click_time = now
-                        return GestureType.LEFT_CLICK, meta
-                    return GestureType.IDLE, {"status": "cooldown_blocked"}
-
-        # ── 3. THREE-FINGER RIGHT CLICK (index + middle + ring UP, pinky DOWN) ──
-        if index == 1 and middle == 1 and ring == 1 and pinky == 0:
-            self.pinch_start_time = None
-            if not self._is_cooling_down(GestureType.RIGHT_CLICK, now) and (now - self._last_any_click_time) >= 0.35:
-                self._record_trigger(GestureType.RIGHT_CLICK, now)
-                self._last_any_click_time = now
-                self._clear_buffer()
-                self._was_scrolling = False
-                return GestureType.RIGHT_CLICK, meta
-            return GestureType.IDLE, {"status": "cooldown_blocked"}
-
-        # ── 4. ALL 5 FINGERS — Right Click (PALM) or Double Click (BACK) ────────
-        # Guarded: blocked for 0.80s after scroll ends to prevent uncurling fingers
-        # from accidentally firing double click (which could minimize windows).
+        # ── 3. ALL 5 FINGERS — Double Click (BACK of hand only) ─────────────────
         all_five_up = (thumb == 1 and index == 1 and middle == 1
                        and ring == 1 and pinky == 1)
         scroll_just_ended = (now - self._last_scroll_time) < self._scroll_guard_duration
 
         if all_five_up and not scroll_just_ended:
-            self.pinch_start_time = None
+            self._two_finger_click_fired = False
             self._was_scrolling = False
             orientation = self._get_palm_orientation(landmarks, handedness=handedness)
             meta["palm_orientation"] = orientation
 
-            if orientation == "PALM":
-                if self._confirm("RIGHT_CLICK"):
-                    if not self._is_cooling_down(GestureType.RIGHT_CLICK, now) and (now - self._last_any_click_time) >= 0.35:
-                        self._record_trigger(GestureType.RIGHT_CLICK, now)
-                        self._last_any_click_time = now
-                        self._clear_buffer()
-                        return GestureType.RIGHT_CLICK, meta
-                return GestureType.IDLE, {"status": "confirming_right_click", **meta}
-
-            elif orientation == "BACK":
+            if orientation == "BACK":
                 if self._confirm("DOUBLE_CLICK"):
                     if not self._is_cooling_down(GestureType.DOUBLE_CLICK, now) and (now - self._last_any_click_time) >= 0.35:
                         self._record_trigger(GestureType.DOUBLE_CLICK, now)
@@ -406,17 +403,16 @@ class GestureRecognizer:
                 self._confirm("UNKNOWN_FIVE")
                 return GestureType.IDLE, {"status": "orientation_unknown", **meta}
 
-        # ── 5. SCROLL — Two fingers up (Index + Middle, Ring & Pinky down) ─────
-        # Natural & comfortable: user holds up Index and Middle (like trackpad 2-finger scroll).
-        # Ring and Pinky MUST be DOWN so it never conflicts with 3-finger or 5-finger gestures.
-        if index == 1 and middle == 1 and ring == 0 and pinky == 0:
+        # ── 4. SCROLL — Three fingers up (Index + Middle + Ring, Pinky down) ──
+        if self._is_three_fingers(landmarks, fingers):
             self._clear_buffer()
-            self._last_scroll_time = now   # refresh guard every scroll frame
+            self._two_finger_start_time = None
+            self._two_finger_click_fired = False
+            self._last_scroll_time = now
 
             slot = 2 if len(landmarks[8]) == 3 else 1
-            avg_y = (landmarks[8][slot] + landmarks[12][slot]) / 2.0
+            avg_y = (landmarks[8][slot] + landmarks[12][slot] + landmarks[16][slot]) / 3.0
 
-            # Fresh entry: reset anchor and accumulator
             if not self._was_scrolling:
                 self._prev_scroll_y = avg_y
                 self._scroll_anchor_y = avg_y
@@ -424,12 +420,10 @@ class GestureRecognizer:
                 self._was_scrolling = True
                 return GestureType.SCROLL, {"scroll_delta": 0, "delta_y": avg_y, "scroll_mode": "START"}
 
-            raw_delta = self._prev_scroll_y - avg_y   # +ve = up, -ve = down
+            raw_delta = self._prev_scroll_y - avg_y
             self._prev_scroll_y = avg_y
 
-            # Dual Scroll Engine:
-            # 1. Flick motion (direct dynamic hand movement)
-            self._scroll_accumulator += (raw_delta / 6.0) * (self.scroll_sensitivity / 2.0)
+            self._scroll_accumulator += (raw_delta / 5.0) * (self.scroll_sensitivity / 2.0)
             self._scroll_accumulator = max(-6.0, min(6.0, self._scroll_accumulator))
 
             flick_tick = int(self._scroll_accumulator)
@@ -437,17 +431,13 @@ class GestureRecognizer:
                 self._scroll_accumulator -= flick_tick
                 flick_tick = max(-4, min(4, flick_tick))
 
-            # 2. Continuous Anchor Tilt Glide:
-            # If user holds fingers slightly above or below starting point,
-            # glide continuously without needing to repeatedly wave arm!
             anchor_offset = getattr(self, "_scroll_anchor_y", avg_y) - avg_y
             glide_tick = 0
-            if abs(anchor_offset) > 30:
+            if abs(anchor_offset) > 28:
                 direction = 1 if anchor_offset > 0 else -1
-                glide_speed = min(3.0, (abs(anchor_offset) - 30) / 25.0)
+                glide_speed = min(3.0, (abs(anchor_offset) - 28) / 22.0)
                 glide_tick = int(direction * max(1.0, glide_speed))
 
-            # Prioritize active flick, otherwise continuous glide
             total_tick = flick_tick if flick_tick != 0 else glide_tick
             total_tick = max(-4, min(4, total_tick))
 
@@ -461,6 +451,35 @@ class GestureRecognizer:
         # Not in scroll this frame — clear entry flag
         self._was_scrolling = False
 
+        # ── 5. TWO FINGERS (INDEX + MIDDLE) — ONE-SHOT LEFT CLICK ─────────────
+        # Guarded against scroll transitions (blocked for 0.40s after scroll ends)
+        # and requires 70ms stable hold so raising 3 fingers quickly never misfires a click.
+        scroll_recently_active = (now - self._last_scroll_time) < 0.40
+        is_two_fingers = self._is_two_fingers(landmarks, fingers) and not scroll_recently_active
+
+        if is_two_fingers:
+            self._clear_buffer()
+            if not self._two_finger_click_fired:
+                if self._two_finger_start_time is None:
+                    self._two_finger_start_time = now
+
+                hold_time = now - self._two_finger_start_time
+                if hold_time >= self._two_finger_confirm_duration:
+                    if not self._is_cooling_down(GestureType.LEFT_CLICK, now) and (now - self._last_any_click_time) >= 0.20:
+                        self._record_trigger(GestureType.LEFT_CLICK, now)
+                        self._last_any_click_time = now
+                        self._two_finger_click_fired = True
+                        self._two_finger_start_time = None
+                        return GestureType.LEFT_CLICK, {"status": "two_finger_click"}
+                    return GestureType.IDLE, {"status": "cooldown_blocked"}
+                else:
+                    return GestureType.IDLE, {"status": "two_finger_confirming"}
+            else:
+                return GestureType.IDLE, {"status": "two_finger_held"}
+        else:
+            self._two_finger_start_time = None
+            self._two_finger_click_fired = False
+
         # ── 6. MOVE — only index finger extended ───────────────────────────────
         if index == 1 and middle == 0 and ring == 0 and pinky == 0:
             self._clear_buffer()
@@ -470,6 +489,7 @@ class GestureRecognizer:
                 cursor_pt = (landmarks[8][0], landmarks[8][1])
             return GestureType.MOVE, {"cursor_pt": cursor_pt, "cursor_pos": cursor_pt}
 
-        # ── 7. IDLE / unrecognised pose ─────────────────────────────────────────
+        # ── 7. Neutral / unrecognised pose (no action) ─────────────────────────
         self._clear_buffer()
         return GestureType.IDLE, meta
+

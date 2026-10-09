@@ -52,3 +52,27 @@ def test_mouse_drag_state():
     assert mouse.is_dragging
     mouse.end_drag()
     assert not mouse.is_dragging
+
+
+def test_taskbar_reach_with_asymmetric_margins():
+    """Verify that user can reach the bottom edge (taskbar) without hand leaving webcam frame."""
+    mouse = MouseController(
+        screen_size=(1920, 1080),
+        frame_size=(640, 480),
+        frame_margin=70,
+        frame_margin_top=60,
+        frame_margin_bottom=150,
+        smoothing_factor=1.0
+    )
+    # At top margin y=60 -> reaches top of screen
+    _, sy_top = mouse.map_coordinates(320, 60)
+    assert sy_top == 0
+
+    # At bottom margin y = 480 - 150 = 330 (hand safely inside frame) -> reaches bottom (taskbar)
+    _, sy_bottom = mouse.map_coordinates(320, 330)
+    assert sy_bottom == 1080
+
+    # Below bottom margin -> stays clamped at 1080 in taskbar
+    _, sy_clamped = mouse.map_coordinates(320, 380)
+    assert sy_clamped == 1080
+

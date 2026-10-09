@@ -55,25 +55,22 @@ def test_per_gesture_debounce_cooldown():
     }
     recognizer = GestureRecognizer(cooldowns=custom_cooldowns)
     landmarks = create_mock_landmarks()
-    landmarks[4] = [100, 100]  # Pinch thumb & index together
-    landmarks[8] = [100, 100]
 
-    # 1. Start pinch at t = 1.0
-    recognizer.recognize([1, 1, 0, 0, 0], landmarks, confidence=0.9, current_time=1.0)
-    # Release pinch at t = 1.1 (< 0.45s hold -> Left Click)
-    landmarks_released = create_mock_landmarks()
-    landmarks_released[4] = [150, 150]
-    gesture, _ = recognizer.recognize([1, 1, 0, 0, 0], landmarks_released, confidence=0.9, current_time=1.1)
+    # 1. First two-finger click at t = 1.0 (with 80ms confirmation)
+    recognizer.recognize([0, 1, 1, 0, 0], landmarks, confidence=0.9, current_time=1.0)
+    gesture, _ = recognizer.recognize([0, 1, 1, 0, 0], landmarks, confidence=0.9, current_time=1.08)
     assert gesture == GestureType.LEFT_CLICK
 
-    # 2. Immediate second pinch release at t = 1.25 (elapsed 0.15s < 0.50s cooldown)
-    recognizer.recognize([1, 1, 0, 0, 0], landmarks, confidence=0.9, current_time=1.20)
-    gesture_repeat, _ = recognizer.recognize([1, 1, 0, 0, 0], landmarks_released, confidence=0.9, current_time=1.25)
+    # 2. Lower finger then raise again quickly at t = 1.25 (elapsed 0.17s < 0.50s cooldown)
+    recognizer.recognize([0, 1, 0, 0, 0], landmarks, confidence=0.9, current_time=1.20)
+    recognizer.recognize([0, 1, 1, 0, 0], landmarks, confidence=0.9, current_time=1.25)
+    gesture_repeat, _ = recognizer.recognize([0, 1, 1, 0, 0], landmarks, confidence=0.9, current_time=1.33)
     assert gesture_repeat == GestureType.IDLE  # Blocked by debounce cooldown
 
-    # 3. Third pinch release after cooldown at t = 1.70 (elapsed 0.60s > 0.50s)
-    recognizer.recognize([1, 1, 0, 0, 0], landmarks, confidence=0.9, current_time=1.65)
-    gesture_after_cooldown, _ = recognizer.recognize([1, 1, 0, 0, 0], landmarks_released, confidence=0.9, current_time=1.70)
+    # 3. Raise two fingers again after cooldown at t = 1.70 (elapsed 0.62s > 0.50s)
+    recognizer.recognize([0, 1, 0, 0, 0], landmarks, confidence=0.9, current_time=1.65)
+    recognizer.recognize([0, 1, 1, 0, 0], landmarks, confidence=0.9, current_time=1.70)
+    gesture_after_cooldown, _ = recognizer.recognize([0, 1, 1, 0, 0], landmarks, confidence=0.9, current_time=1.78)
     assert gesture_after_cooldown == GestureType.LEFT_CLICK
 
 
