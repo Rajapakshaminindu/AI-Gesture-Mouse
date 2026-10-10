@@ -12,7 +12,7 @@
 
 **A high-precision, software-only, AI-powered touchless human-computer interface using standard webcams and natural hand gestures.**
 
-[Executive Summary](#-executive-summary) • [Key Features](#-key-features) • [Gesture Guide](#-gesture-guide) • [Fully Functional vs Mocked](#-what-is-fully-functional-vs-mocked) • [Tech Stack](#-tech-stack) • [Installation & Quickstart](#-installation--quickstart) • [Submission Deliverables](#-intellicon-2026-gate-3-deliverables) • [Architecture](#-architecture) • [Team](#-team-new-moon)
+[Executive Summary](#-executive-summary) • [Key Features](#-key-features) • [Gesture Guide](#-gesture-guide) • [Fully Functional vs Mocked](#-what-is-fully-functional-vs-mocked) • [Tech Stack](#-tech-stack) • [Installation & Quickstart](#-installation--quickstart) • [Submission Deliverables](#-intellicon-2026-gate-3-deliverables) • [Architecture](#-architecture) • [Team](#-team-futurestack)
 
 </div>
 
@@ -238,16 +238,15 @@ tests/test_mouse_controller.py .....                           [100%]
 
 ---
 
-## 👥 Team NEW MOON
+## 👥 Team FutureStack
 
-**University of Kelaniya — IntelliCon 2026**
+**Undergraduate — IntelliCon 2026 (Team Code: `802359D5`)**
 
 | Name | Role | Responsibilities |
 | :--- | :--- | :--- |
-| **G.W.S.P. Mihirangi De Silva** | Team Leader & QA Lead | Gesture state machine, debounce timers, quality assurance |
-| **R.G.M.J. Rajapaksha** | Core AI Developer & Architect | Mathematical filtering, OS automation, 1-Euro filter pipeline |
-| **T.W. Dulana Chathurma** | System Design & Integration | Architecture design, calibration utility, performance tuning |
-| **A.P.K. Gimshan** | UX/UI & Product Strategy | Launcher GUI, visual HUD design, business analysis |
+| **Minindu Rajapaksha** | **Team Leader** & Core AI / Systems Engineer | Mathematical filtering, 1-Euro filter pipeline, OS automation, system architecture |
+| **G.W. Sulochana Prabodhani Mihirangi De Silva** | Co-Developer & QA Lead | Gesture state machine, debounce timers, quality assurance |
+| **Kavindu Gimshan** | Co-Developer & UI/UX / Product Strategy | Launcher GUI, HUD telemetry design, user experience & business strategy |
 
 ---
 

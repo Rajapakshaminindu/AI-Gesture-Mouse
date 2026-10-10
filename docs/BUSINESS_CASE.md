@@ -2,7 +2,7 @@
 **Project**: AI Gesture Mouse — Touchless Human-Computer Interaction  
 **Competition**: IntelliCon 2026 (Gate 3 — Final Submission)  
 **Date**: October 2026  
-**Team**: Team New Moon (University of Kelaniya)  
+**Team**: Team FutureStack (Undergraduate — Team Code: 802359D5)  
 
 ---
 

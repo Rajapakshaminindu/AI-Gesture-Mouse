@@ -1,6 +1,6 @@
 # 👥 Team Work Distribution & Task Split
 
-This document outlines the division of development tasks for **AI Gesture Mouse** (IntelliCon '26 Project) across three core team members/collaborators.
+This document outlines the division of development tasks for **AI Gesture Mouse** (IntelliCon '26 Project — Team FutureStack, Code: `802359D5`) across three core team members.
 
 ---
 
@@ -8,36 +8,36 @@ This document outlines the division of development tasks for **AI Gesture Mouse*
 
 ```
                               ┌─────────────────────────────────────────┐
-                              │           AI GESTURE MOUSE              │
+                              │     AI GESTURE MOUSE (FutureStack)      │
                               └─────────────────────────────────────────┘
                                                    │
          ┌─────────────────────────────────────────┼─────────────────────────────────────────┐
          │                                         │                                         │
          ▼                                         ▼                                         ▼
 ┌─────────────────────────────────┐   ┌─────────────────────────────────┐   ┌─────────────────────────────────┐
-│     MEMBER 1: CORE AI & ENG     │   │  MEMBER 2: GESTURES & QA        │   │    MEMBER 3: UX/UI & HUD        │
-│    (R.G.M.J. Rajapaksha)        │   │  (G.W.S.P. Mihirangi De Silva)  │   │      (A.P.K. Gimshan)           │
-│      @Rajapakshaminindu         │   │         @Mihirangi315           │   │        @kavindugimshan          │
+│   MEMBER 1: TEAM LEADER & AI    │   │  MEMBER 2: GESTURES & QA        │   │    MEMBER 3: UX/UI & HUD        │
+│      (Minindu Rajapaksha)       │   │ (G.W. Sulochana P. M. De Silva) │   │        (Kavindu Gimshan)        │
+│       @Rajapakshaminindu        │   │          @Mihirangi315          │   │         @kavindugimshan         │
 ├─────────────────────────────────┤   ├─────────────────────────────────┤   ├─────────────────────────────────┤
 │ • Action Mapping Engine         │   │ • Gesture Recognition Filters   │   │ • HUD Live Dashboard Overlay    │
 │ • Custom Hotkeys & Actions      │   │ • Per-Gesture Debounce Engine   │   │ • Landmark Calibration Tool     │
-│ • Adaptive Velocity Smoothing   │   │ • Directional Swipe Dynamics    │   │ • Startup Splash Screen         │
+│ • 1-Euro Adaptive Stabilization │   │ • Directional Swipe Dynamics    │   │ • Startup Splash Screen         │
 │ • Gesture Analytics Telemetry   │   │ • Confidence Threshold Gating   │   │ • Interactive Visual Feedback   │
 └─────────────────────────────────┘   └─────────────────────────────────┘   └─────────────────────────────────┘
 ```
 
 ---
 
-## 👤 Member 1: R.G.M.J. Rajapaksha (@Rajapakshaminindu) — Core AI Developer & AI Engineering
+## 👤 Member 1: Minindu Rajapaksha (@Rajapakshaminindu) — Team Leader & Core AI Engineer
 
-### 📌 Focus Area: Action Mapping, Adaptive Smoothing, Configuration & Telemetry
+### 📌 Focus Area: System Architecture, 1-Euro Smoothing, Action Mapping & Telemetry
 **Status**: 🟢 Completed & Integrated into `main`
 
 ### Assigned Tasks & Modules:
 1. **Dynamic Action Mapping Engine (`src/action_mapper.py`)**:
    - Implemented configurable action mapping layer to bind recognized gestures to system actions, keyboard shortcuts (`Ctrl+C`, `Ctrl+V`, `Alt+Tab`), media controls, and custom OS triggers.
-2. **Adaptive Velocity-Based Smoothing (`src/mouse_controller.py`)**:
-   - Dynamic Exponential Moving Average (EMA) smoothing factor based on Instantaneous Hand Velocity. Uses high smoothing for fine precision during micro-movements and low smoothing during fast flicks.
+2. **1-Euro Adaptive Velocity-Based Smoothing (`src/mouse_controller.py`)**:
+   - Dynamic 1-Euro filter and 3-point median buffer based on Instantaneous Hand Velocity. Uses high tremor absorption for fine precision during micro-movements and low smoothing during fast flicks.
 3. **Session Analytics & Telemetry Engine (`src/analytics.py`)**:
    - Real-time logging of active gesture frequency, stroke speed, landmark confidence tracking, and session report exporter (`analytics_report.json`).
 4. **Configuration Validation Engine (`src/config.py`)**:
@@ -47,7 +47,7 @@ This document outlines the division of development tasks for **AI Gesture Mouse*
 
 ---
 
-## 👤 Member 2: G.W.S.P. Mihirangi De Silva (@Mihirangi315) — Gesture Recognition & QA
+## 👤 Member 2: G.W. Sulochana Prabodhani Mihirangi De Silva (@Mihirangi315) — Gesture Recognition & QA
 
 ### 📌 Focus Area: Gesture Detection Enhancement, Debounce Logic & Test QA
 **Status**: 🟢 Completed & Merged into `main` (`src/gesture_recognizer.py`, `tests/test_gesture_enhancements.py`)
@@ -64,7 +64,7 @@ This document outlines the division of development tasks for **AI Gesture Mouse*
 
 ---
 
-## 👤 Member 3: A.P.K. Gimshan (@kavindugimshan) — UX/UI, Dashboard & Calibration
+## 👤 Member 3: Kavindu Gimshan (@kavindugimshan) — UX/UI, Dashboard & Calibration
 
 ### 📌 Focus Area: Live Camera HUD Overlay, Cursor Diagnostics & Calibration
 **Status**: 🟢 Completed & Merged into `main` (`src/main.py`, `src/calibration.py`)

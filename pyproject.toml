@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
-    { name = "Team NEW MOON", email = "rajapakshaminidu@gmail.com" }
+    { name = "Team FutureStack", email = "rajapakshaminidu@gmail.com" }
 ]
 keywords = [
     "computer-vision",

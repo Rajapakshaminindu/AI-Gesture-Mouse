@@ -2,7 +2,7 @@
 **Project**: AI Gesture Mouse — Touchless Computer Control Interface  
 **Competition**: IntelliCon 2026 (Gate 3 — Final Submission)  
 **Date**: October 2026  
-**Team**: Team New Moon (University of Kelaniya)  
+**Team**: Team FutureStack (Undergraduate — Team Code: 802359D5)  
 
 ---
 
@@ -46,7 +46,7 @@ Our team adopted a transparent, responsible, and ethical approach to AI tool usa
 ## 4. Declaration of Originality & Pre-Existing Work
 
 1. **Originality of Architecture & Core Logic**:
-   The architectural design, unified 5-gesture interaction paradigm, dual-API hand tracker bridge (supporting both legacy `mediapipe.solutions` and modern `MediaPipe Tasks API`), Tkinter Launcher UX, and action mapping system are original works developed by Team New Moon.
+   The architectural design, unified 5-gesture interaction paradigm, dual-API hand tracker bridge (supporting both legacy `mediapipe.solutions` and modern `MediaPipe Tasks API`), Tkinter Launcher UX, and action mapping system are original works developed by Team FutureStack.
 
 2. **Open-Source Components & Attribution**:
    * **OpenCV (`cv2`)**: Used for real-time video capture, frame flipping, and visual HUD rendering under Apache 2.0.
