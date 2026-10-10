@@ -151,7 +151,7 @@ In compliance with the **IntelliCon 2026 Final Submission (Gate 3)** guidelines,
 | Deliverable | Description / Location | Status |
 | :--- | :--- | :---: |
 | **Public GitHub Repository** | Complete source code, configuration, and documentation | ✅ **Live on GitHub** |
-| **Demo Video (<= 4 mins)** | Real-world product demonstration showing live gesture navigation | 🔗 [Watch Demo Video]([#-demo-video](https://youtu.be/x3-YuQR_cVY?si=oymMtk9gmA4gh2xX)) |
+| **Demo Video (<= 4 mins)** | Real-world product demonstration showing live gesture navigation | 🔗 [Watch Demo Video (YouTube)](https://youtu.be/x3-YuQR_cVY?si=oymMtk9gmA4gh2xX) |
 | **Technical README** | Setup, tech stack, key features, functional vs mocked matrix | ✅ **Included Above** |
 | **Business Case Document** | Problem, solution, market size, competition, and monetization | 📄 [docs/BUSINESS_CASE.md](docs/BUSINESS_CASE.md) |
 | **Project Presentation** | 12-slide comprehensive project slide deck summary | 📄 [Proposal/Gate1_Writeup_GestureMouseAI .pdf](Proposal/Gate1_Writeup_GestureMouseAI%20.pdf) |
@@ -163,7 +163,15 @@ In compliance with the **IntelliCon 2026 Final Submission (Gate 3)** guidelines,
 
 Watch our official product video demonstrating live tracking, zero-shake cursor control, right-click menu navigation, double clicking, and smooth scrolling:
 
-> 📹 **[Click here to watch the AI Gesture Mouse Demonstration Video]([https://youtu.be/F9Yy4gpLEBk?si=3HNrJborli19yi6s](https://youtu.be/x3-YuQR_cVY?si=oymMtk9gmA4gh2xX))**
+<p align="center">
+  <a href="https://youtu.be/x3-YuQR_cVY?si=oymMtk9gmA4gh2xX">
+    <img src="https://img.youtube.com/vi/x3-YuQR_cVY/maxresdefault.jpg" alt="AI Gesture Mouse Demonstration Video" width="750" style="border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,0.4);"/>
+  </a>
+</p>
+
+<p align="center">
+  ▶️ <b><a href="https://youtu.be/x3-YuQR_cVY?si=oymMtk9gmA4gh2xX">Click here to watch the AI Gesture Mouse Demonstration Video on YouTube</a></b>
+</p>
 
 ---
 
