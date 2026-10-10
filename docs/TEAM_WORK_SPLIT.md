@@ -1,6 +1,6 @@
 # 👥 Team Work Distribution & Task Split
 
-This document outlines the division of development tasks for **AI Gesture Mouse** (HackX 11.0 / IntelliCon '26 Project) across three core team members/collaborators.
+This document outlines the division of development tasks for **AI Gesture Mouse** (IntelliCon '26 Project) across three core team members/collaborators.
 
 ---
 

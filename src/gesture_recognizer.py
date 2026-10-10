@@ -92,15 +92,22 @@ class GestureRecognizer:
 
         # ── Scroll transition guard ─────────────────────────────────────────────
         self._last_scroll_time: float = 0.0
-        self._scroll_guard_duration: float = 0.80
+        self._scroll_guard_duration: float = 0.40
 
         # ── Two-finger one-shot click latch & transition debounce ──────────────
         self._two_finger_click_fired: bool = False
         self._two_finger_start_time: Optional[float] = None
         self._two_finger_confirm_duration: float = 0.030  # 30ms: balanced fast click response
+        # ── Right click transition guard ────────────────────────────────────────
+        self._last_right_click_time: float = 0.0
+        self._right_click_guard_duration: float = 0.85  # 850ms: suppresses stray left click when transitioning away from thumbs-up
 
         # Mutual click lockout: prevents Left Click and Right Click from firing together
         self._last_any_click_time: float = 0.0
+
+        # One-shot latches for action gestures (guarantees exactly 1 action per gesture hold)
+        self._thumbs_up_fired: bool = False
+        self._double_click_fired: bool = False
 
     # ─────────────────────────────────────────────────────────────────────────
     #  Utility helpers
@@ -165,7 +172,7 @@ class GestureRecognizer:
             self._z_orientation_buffer.append(cross_z)
             smoothed = sum(self._z_orientation_buffer) / len(self._z_orientation_buffer)
 
-            if abs(smoothed) < 200:
+            if abs(smoothed) < 40:
                 return "UNKNOWN"
 
             # In mirrored webcam mode (standard in webcams):
@@ -312,14 +319,20 @@ class GestureRecognizer:
             return False
 
     def _is_two_fingers(self, landmarks: List[List[int]], fingers: List[int]) -> bool:
-        """Returns True if only index and middle are extended, and ring and pinky are curled down."""
+        """Returns True if only index and middle are extended, and thumb, ring, and pinky are curled down."""
         if not landmarks or len(landmarks) < 21:
             return False
         thumb, index, middle, ring, pinky = fingers if len(fingers) == 5 else [0, 0, 0, 0, 0]
-        if index == 1 and middle == 1 and ring == 0 and pinky == 0:
+        # Thumb must be curled down (thumb == 0), ring == 0, pinky == 0
+        if thumb == 0 and index == 1 and middle == 1 and ring == 0 and pinky == 0:
             return True
         try:
             slot = 2 if len(landmarks[0]) == 3 else 1
+            # Thumb tip must NOT be pointing upward (protects against thumbs-up transition)
+            thumb_up = float(landmarks[4][slot]) < float(landmarks[2][slot]) - 5
+            if thumb_up:
+                return False
+
             idx_up = float(landmarks[8][slot]) < float(landmarks[6][slot])
             mid_up = float(landmarks[12][slot]) < float(landmarks[10][slot])
             rng_dn = float(landmarks[16][slot]) >= float(landmarks[14][slot]) - 6
@@ -369,39 +382,52 @@ class GestureRecognizer:
         # ── 2. THUMBS UP RIGHT CLICK ──────────────────────────────────────────
         if self._is_thumbs_up(landmarks, fingers):
             self._two_finger_click_fired = False
-            if self._confirm("RIGHT_CLICK"):
-                if not self._is_cooling_down(GestureType.RIGHT_CLICK, now) and (now - self._last_any_click_time) >= 0.35:
-                    self._record_trigger(GestureType.RIGHT_CLICK, now)
-                    self._last_any_click_time = now
-                    self._clear_buffer()
-                    self._was_scrolling = False
-                    return GestureType.RIGHT_CLICK, meta
-                return GestureType.IDLE, {"status": "cooldown_blocked"}
-            return GestureType.IDLE, {"status": "confirming_right_click", **meta}
+            self._two_finger_start_time = None
+            self._last_right_click_time = now  # Continually refresh while thumbs-up is maintained
+            if not self._thumbs_up_fired:
+                if self._confirm("RIGHT_CLICK"):
+                    if not self._is_cooling_down(GestureType.RIGHT_CLICK, now) and (now - self._last_any_click_time) >= 0.35:
+                        self._record_trigger(GestureType.RIGHT_CLICK, now)
+                        self._last_right_click_time = now
+                        self._last_any_click_time = now
+                        self._thumbs_up_fired = True
+                        self._clear_buffer()
+                        self._was_scrolling = False
+                        return GestureType.RIGHT_CLICK, meta
+                    return GestureType.IDLE, {"status": "cooldown_blocked"}
+                return GestureType.IDLE, {"status": "confirming_right_click", **meta}
+            else:
+                self._last_any_click_time = now
+                return GestureType.IDLE, {"status": "thumbs_up_held", **meta}
+        else:
+            self._thumbs_up_fired = False
 
-        # ── 3. ALL 5 FINGERS — Double Click (BACK of hand only) ─────────────────
-        all_five_up = (thumb == 1 and index == 1 and middle == 1
-                       and ring == 1 and pinky == 1)
+        # ── 3. ALL 5 FINGERS / OPEN HAND — Double Click ────────────────────────
+        # Hand open facing camera: Index, Middle, Ring, Pinky extended
+        # (Thumb can be extended or relaxed beside the hand)
+        four_or_five_up = (index == 1 and middle == 1 and ring == 1 and pinky == 1)
         scroll_just_ended = (now - self._last_scroll_time) < self._scroll_guard_duration
 
-        if all_five_up and not scroll_just_ended:
+        if four_or_five_up and not scroll_just_ended:
             self._two_finger_click_fired = False
             self._was_scrolling = False
             orientation = self._get_palm_orientation(landmarks, handedness=handedness)
             meta["palm_orientation"] = orientation
 
-            if orientation == "BACK":
+            if not self._double_click_fired:
                 if self._confirm("DOUBLE_CLICK"):
-                    if not self._is_cooling_down(GestureType.DOUBLE_CLICK, now) and (now - self._last_any_click_time) >= 0.35:
+                    if not self._is_cooling_down(GestureType.DOUBLE_CLICK, now) and (now - self._last_any_click_time) >= 0.20:
                         self._record_trigger(GestureType.DOUBLE_CLICK, now)
                         self._last_any_click_time = now
+                        self._double_click_fired = True
                         self._clear_buffer()
                         return GestureType.DOUBLE_CLICK, meta
+                    return GestureType.IDLE, {"status": "cooldown_blocked", **meta}
                 return GestureType.IDLE, {"status": "confirming_double_click", **meta}
-
             else:
-                self._confirm("UNKNOWN_FIVE")
-                return GestureType.IDLE, {"status": "orientation_unknown", **meta}
+                return GestureType.IDLE, {"status": "double_click_held", **meta}
+        else:
+            self._double_click_fired = False
 
         # ── 4. SCROLL — Three fingers up (Index + Middle + Ring, Pinky down) ──
         if self._is_three_fingers(landmarks, fingers):
@@ -453,9 +479,14 @@ class GestureRecognizer:
 
         # ── 5. TWO FINGERS (INDEX + MIDDLE) — ONE-SHOT LEFT CLICK ─────────────
         # Guarded against scroll transitions (blocked for 0.40s after scroll ends)
-        # and requires 70ms stable hold so raising 3 fingers quickly never misfires a click.
+        # and right-click transitions (blocked for 0.65s after right-click fires)
         scroll_recently_active = (now - self._last_scroll_time) < 0.40
-        is_two_fingers = self._is_two_fingers(landmarks, fingers) and not scroll_recently_active
+        right_click_recently_active = (now - self._last_right_click_time) < self._right_click_guard_duration
+        is_two_fingers = (
+            self._is_two_fingers(landmarks, fingers)
+            and not scroll_recently_active
+            and not right_click_recently_active
+        )
 
         if is_two_fingers:
             self._clear_buffer()

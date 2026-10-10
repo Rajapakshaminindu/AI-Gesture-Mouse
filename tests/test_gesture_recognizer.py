@@ -209,3 +209,89 @@ def test_pinch_does_not_trigger_drag():
         assert g != GestureType.DRAG
 
 
+def test_right_click_transition_to_move_does_not_fire_left_click():
+    """Verifies that transitioning from thumbs-up right click back to pointing never misfires left click."""
+    recognizer = GestureRecognizer(confirm_frames=1)
+
+    # 1. Thumbs-up gesture at t = 1000.0
+    # wrist (0, 300), thumb_mcp (100, 200), thumb_tip (100, 100), index_tip (150, 250)
+    lms_thumb = [[i, 0, 0] for i in range(21)]
+    lms_thumb[0] = [0, 100, 300]
+    lms_thumb[2] = [2, 100, 200]
+    lms_thumb[4] = [4, 100, 100]  # thumb straight up
+    # All fingers curled down: tips below PIPs
+    for tip, pip in [(8, 6), (12, 10), (16, 14), (20, 18)]:
+        lms_thumb[pip] = [pip, 150, 200]
+        lms_thumb[tip] = [tip, 150, 250]
+
+    g_rc, _ = recognizer.recognize([1, 0, 0, 0, 0], lms_thumb, current_time=1000.0)
+    assert g_rc == GestureType.RIGHT_CLICK
+
+    # 2. Transition frame 100ms later: fingers uncurling, thumb still partly up [1, 1, 1, 0, 0]
+    g_trans, _ = recognizer.recognize([1, 1, 1, 0, 0], lms_thumb, current_time=1000.1)
+    assert g_trans != GestureType.LEFT_CLICK
+
+    # 3. Transition frame 200ms later: two fingers appear during hand reshape
+    lms_two = build_mock_landmarks(thumb_pt=(50, 200), index_pt=(200, 100), middle_pt=(250, 100))
+    lms_two[14] = [14, 280, 200]; lms_two[16] = [16, 280, 250]
+    lms_two[18] = [18, 300, 200]; lms_two[20] = [20, 300, 250]
+    g_two, _ = recognizer.recognize([0, 1, 1, 0, 0], lms_two, current_time=1000.2)
+    # Blocked by right click guard duration (0.65s) -> Must NOT fire left click!
+    assert g_two != GestureType.LEFT_CLICK
+
+    # 4. Pointing index finger (MOVE) at t = 1000.3
+    g_move, _ = recognizer.recognize([0, 1, 0, 0, 0], lms_two, current_time=1000.3)
+    assert g_move == GestureType.MOVE
+
+
+def test_long_held_right_click_transition_does_not_fire_left_click():
+    """Verifies that holding right click for 2.0s and releasing never misfires left click."""
+    recognizer = GestureRecognizer(confirm_frames=1)
+
+    lms_thumb = [[i, 0, 0] for i in range(21)]
+    lms_thumb[0] = [0, 100, 300]
+    lms_thumb[2] = [2, 100, 200]
+    lms_thumb[4] = [4, 100, 100]
+    for tip, pip in [(8, 6), (12, 10), (16, 14), (20, 18)]:
+        lms_thumb[pip] = [pip, 150, 200]
+        lms_thumb[tip] = [tip, 150, 250]
+
+    # Fires at t = 1000.0
+    g, _ = recognizer.recognize([1, 0, 0, 0, 0], lms_thumb, current_time=1000.0)
+    assert g == GestureType.RIGHT_CLICK
+
+    # User holds thumbs-up for 2 seconds (menu is visible)
+    for t_step in [1000.5, 1001.0, 1001.5, 1002.0]:
+        g_held, meta_held = recognizer.recognize([1, 0, 0, 0, 0], lms_thumb, current_time=t_step)
+        assert g_held == GestureType.IDLE
+        assert meta_held.get("status") == "thumbs_up_held"
+
+    # User releases thumbs-up at t = 1002.1 and hand momentarily flashes 2 fingers during uncurl
+    lms_two = build_mock_landmarks(thumb_pt=(50, 200), index_pt=(200, 100), middle_pt=(250, 100))
+    lms_two[14] = [14, 280, 200]; lms_two[16] = [16, 280, 250]
+    lms_two[18] = [18, 300, 200]; lms_two[20] = [20, 300, 250]
+    g_exit, _ = recognizer.recognize([0, 1, 1, 0, 0], lms_two, current_time=1002.15)
+    # MUST NOT fire left click (guard remains active after releasing held thumbs-up)!
+    assert g_exit != GestureType.LEFT_CLICK
+
+    # Reaching MOVE state smoothly
+    g_move, _ = recognizer.recognize([0, 1, 0, 0, 0], lms_two, current_time=1002.3)
+    assert g_move == GestureType.MOVE
+
+
+def test_open_hand_triggers_double_click_cleanly():
+    """Verifies that an open hand (4 or 5 fingers up) triggers double click promptly."""
+    recognizer = GestureRecognizer(confirm_frames=1)
+    lms_open = [[i, 0, 0] for i in range(21)]
+    lms_open[0] = [0, 300, 400]
+    lms_open[5] = [5, 300, 250]
+    lms_open[17] = [17, 300, 250]
+    lms_open[4] = [4, 400, 250]
+    lms_open[8] = [8, 300, 100]
+
+    gesture, meta = recognizer.recognize([1, 1, 1, 1, 1], lms_open, current_time=1000.0)
+    assert gesture == GestureType.DOUBLE_CLICK
+
+
+
+

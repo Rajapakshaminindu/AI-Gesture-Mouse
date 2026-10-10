@@ -243,6 +243,8 @@ def open_working_camera(preferred_idx: int, width: int, height: int) -> tuple[cv
 
 
 def main() -> None:
+    args = parse_arguments()
+
     # ── Show Launcher UI first ────────────────────────────────────────────────
     launcher = LauncherWindow()
     started = launcher.show()     # blocks until Start clicked or window closed
@@ -257,7 +259,6 @@ def main() -> None:
         print("[Error] OpenCV is required. Please install it: pip install -r requirements.txt")
         sys.exit(1)
 
-    args = parse_arguments()
     config = AppConfig.load(args.config)
     camera_idx = args.camera if args.camera is not None else config.camera_index
 
@@ -398,10 +399,11 @@ def main() -> None:
             active_gesture = GestureType.IDLE
             meta = {}
             cursor_pos = (config.frame_width // 2, config.frame_height // 2)
-
             if landmarks and len(landmarks) >= 21:
-                # landmarks[8] = [id, x, y]; use [1],[2] for pixel coords
-                cursor_pos = (landmarks[8][1], landmarks[8][2])
+                # Sub-pixel blend of fingertip (lm 8) and DIP joint (lm 7) for jitter-free tracking
+                fx = (landmarks[8][1] * 2.0 + landmarks[7][1] * 2.0) / 4.0
+                fy = (landmarks[8][2] * 2.0 + landmarks[7][2] * 2.0) / 4.0
+                cursor_pos = (int(round(fx)), int(round(fy)))
                 active_gesture, meta = recognizer.recognize(
                     fingers, landmarks, current_time=curr_time, handedness=handedness
                 )
@@ -412,16 +414,12 @@ def main() -> None:
                     if active_gesture == GestureType.MOVE:
                         # Only update locked position while actively moving
                         locked_cursor_pos = cursor_pos
-                        mouse.move_cursor(cursor_pos[0], cursor_pos[1])
+                        mouse.move_cursor(fx, fy)
                     elif active_gesture == GestureType.LEFT_CLICK:
-                        # Use locked position — cursor must NOT drift during click gesture
-                        mouse.move_cursor(locked_cursor_pos[0], locked_cursor_pos[1])
                         mouse.left_click()
                     elif active_gesture == GestureType.RIGHT_CLICK:
-                        mouse.move_cursor(locked_cursor_pos[0], locked_cursor_pos[1])
                         mouse.right_click()
                     elif active_gesture == GestureType.DOUBLE_CLICK:
-                        mouse.move_cursor(locked_cursor_pos[0], locked_cursor_pos[1])
                         mouse.double_click()
                     elif active_gesture == GestureType.SCROLL:
                         scroll_delta = meta.get("scroll_delta", 0)

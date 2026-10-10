@@ -13,6 +13,7 @@ OS-level mouse automation via PyAutoGUI with zero-latency configuration.
 from typing import Tuple, Optional
 import time
 import math
+import collections
 
 try:
     import numpy as np
@@ -71,12 +72,14 @@ class MouseController:
         self.curr_x = self.prev_x
         self.curr_y = self.prev_y
 
-        # Stage-2: Low-pass EMA buffer (pre-filter before mapping)
+        # Stage-2: Multi-stage jitter filter (3-point median + 1-Euro adaptive EMA)
+        self._raw_buf_x = collections.deque(maxlen=3)
+        self._raw_buf_y = collections.deque(maxlen=3)
+        self._filt_x: Optional[float] = None
+        self._filt_y: Optional[float] = None
+        self._filt_t: Optional[float] = None
         self._ema_x: Optional[float] = None
         self._ema_y: Optional[float] = None
-        # EMA alpha: lower = smoother but more lag, higher = faster but jittery
-        # 0.40 is the sweet spot: smooth enough to hide tremors, fast enough to track intent
-        self._ema_alpha: float = 0.40
 
         # Stage-3 velocity history for adaptive smoothing tuning
         self._velocity_history: list = []
@@ -87,33 +90,55 @@ class MouseController:
 
     def _ema_filter(self, raw_x: float, raw_y: float) -> Tuple[float, float]:
         """
-        Stage-1 — Low-pass Exponential Moving Average on raw camera coordinates.
-        Removes high-frequency jitter before coordinate mapping.
-        Alpha is dynamically raised for fast movements so the cursor doesn't lag.
+        Stage-1 — Rolling 3-point median filter + 1-Euro adaptive low-pass filter
+        on raw camera coordinates. Completely eliminates sensor pixel wobble and hand
+        micro-tremors when stationary or moving slowly, while dynamically opening
+        bandwidth during fast sweeps for zero latency.
         """
-        if self._ema_x is None:
-            self._ema_x, self._ema_y = raw_x, raw_y
-            return raw_x, raw_y
+        self._raw_buf_x.append(raw_x)
+        self._raw_buf_y.append(raw_y)
+        med_x = sorted(self._raw_buf_x)[len(self._raw_buf_x) // 2]
+        med_y = sorted(self._raw_buf_y)[len(self._raw_buf_y) // 2]
 
-        # Compute how far the finger moved to decide EMA alpha dynamically
-        raw_delta = math.hypot(raw_x - self._ema_x, raw_y - self._ema_y)
+        if self._filt_x is None:
+            self._filt_x, self._filt_y = med_x, med_y
+            self._ema_x, self._ema_y = med_x, med_y
+            self._filt_t = time.time()
+            return med_x, med_y
 
-        # Fast motion (>30px): alpha → 0.70 (responsive)
-        # Slow motion (<5px):  alpha → 0.25 (ultra-stable, tremor-free)
-        dynamic_alpha = self._ema_alpha
-        if raw_delta > 30:
-            dynamic_alpha = min(0.72, self._ema_alpha + 0.32)
-        elif raw_delta < 5:
-            dynamic_alpha = max(0.22, self._ema_alpha - 0.18)
+        now = time.time()
+        dt = max(0.001, now - (self._filt_t or now))
+        if dt < 0.005:
+            dt = 0.033
+        self._filt_t = now
 
-        self._ema_x = dynamic_alpha * raw_x + (1.0 - dynamic_alpha) * self._ema_x
-        self._ema_y = dynamic_alpha * raw_y + (1.0 - dynamic_alpha) * self._ema_y
-        return self._ema_x, self._ema_y
+        raw_delta = math.hypot(med_x - self._filt_x, med_y - self._filt_y)
+
+        # Stage-1 Noise Gate:
+        # Micro-tremors (< 1.6 camera pixels) are heavily filtered with low alpha
+        if raw_delta < 1.6:
+            alpha = 0.04
+            self._filt_x = alpha * med_x + (1.0 - alpha) * self._filt_x
+            self._filt_y = alpha * med_y + (1.0 - alpha) * self._filt_y
+            self._ema_x, self._ema_y = self._filt_x, self._filt_y
+            return self._filt_x, self._filt_y
+
+        # Intentional movement:
+        # Cutoff frequency scales dynamically with velocity
+        speed = raw_delta / dt
+        cutoff = min(32.0, 0.4 + 0.05 * max(0.0, speed - 15.0))
+        tau = 1.0 / (2.0 * math.pi * cutoff)
+        dynamic_alpha = 1.0 / (1.0 + tau / dt)
+
+        self._filt_x = dynamic_alpha * med_x + (1.0 - dynamic_alpha) * self._filt_x
+        self._filt_y = dynamic_alpha * med_y + (1.0 - dynamic_alpha) * self._filt_y
+        self._ema_x, self._ema_y = self._filt_x, self._filt_y
+        return self._filt_x, self._filt_y
 
     def map_coordinates(self, x: float, y: float) -> Tuple[int, int]:
         """
         Maps camera coordinates within an active bounding box to screen coordinates.
-        3-stage pipeline: EMA pre-filter → coordinate mapping → adaptive smoothing.
+        3-stage pipeline: Median + 1-Euro pre-filter → coordinate mapping → adaptive smoothing.
         When smoothing <= 1.0, directly maps coordinates without lag.
         """
         # If smoothing is 1.0 (disabled), direct 1-to-1 mapping
@@ -135,7 +160,7 @@ class MouseController:
             self.prev_y = self.curr_y
             return int(self.curr_x), int(self.curr_y)
 
-        # ── Stage 1: EMA pre-filter on raw camera coordinates ──────────────────
+        # ── Stage 1: Noise gate + adaptive filter on camera coordinates ─────────
         fx, fy = self._ema_filter(x, y)
 
         # ── Stage 2: Coordinate mapping (camera ROI → screen space) ────────────
@@ -153,26 +178,28 @@ class MouseController:
         target_x = norm_x * self.screen_w
         target_y = norm_y * self.screen_h
 
-        # ── Stage 3: Deadzone + adaptive velocity smoothing ─────────────────────
+        # ── Stage 3: Deadzone + continuous velocity smoothing ───────────────────
         dist = math.hypot(target_x - self.prev_x, target_y - self.prev_y)
         self.last_velocity = dist
 
-        # Deadzone: ignore sub-threshold micro-movements (prevents cursor drift at rest)
+        # Deadzone gate: completely rock-solid when hand is at rest
         if dist < self.deadzone:
-            target_x = self.prev_x
-            target_y = self.prev_y
+            return int(self.prev_x), int(self.prev_y)
+
+        # Continuous threshold departure: prevents sudden jump when moving out of deadzone
+        smooth_dist = dist - self.deadzone
+        ratio = smooth_dist / max(1e-4, dist)
+        adj_target_x = self.prev_x + (target_x - self.prev_x) * ratio
+        adj_target_y = self.prev_y + (target_y - self.prev_y) * ratio
 
         if self.enable_adaptive_smoothing:
-            # speed_factor scales 0→3.5 based on movement speed
-            # High speed → small divisor → cursor reacts instantly
-            # Low speed  → larger divisor → rock-steady precision
-            speed_factor = min(3.5, dist / 20.0)
-            effective_smoothing = max(1.0, self.smoothing / (1.0 + speed_factor * 1.2))
+            speed_factor = min(4.0, max(0.0, dist - self.deadzone) / 16.0)
+            effective_smoothing = max(1.2, self.smoothing / (1.0 + speed_factor * 2.0))
         else:
             effective_smoothing = self.smoothing
 
-        self.curr_x = self.prev_x + (target_x - self.prev_x) / effective_smoothing
-        self.curr_y = self.prev_y + (target_y - self.prev_y) / effective_smoothing
+        self.curr_x = self.prev_x + (adj_target_x - self.prev_x) / effective_smoothing
+        self.curr_y = self.prev_y + (adj_target_y - self.prev_y) / effective_smoothing
 
         self.prev_x = self.curr_x
         self.prev_y = self.curr_y
@@ -213,9 +240,14 @@ class MouseController:
         """Performs double left mouse click."""
         if PYAUTOGUI_AVAILABLE and pyautogui is not None:
             try:
-                pyautogui.doubleClick()
+                pyautogui.doubleClick(interval=0.06)
             except Exception:
-                pass
+                try:
+                    pyautogui.click()
+                    time.sleep(0.04)
+                    pyautogui.click()
+                except Exception:
+                    pass
         self.last_click_time = time.time()
 
     def scroll(self, clicks: int) -> None:
