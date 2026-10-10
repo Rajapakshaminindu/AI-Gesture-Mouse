@@ -133,7 +133,7 @@ pip install -r requirements.txt
 python -m src.main
 
 # Or direct run
-python src/main.py
+python src/main.py or python src/main.py --camera 1
 ```
 
 ### Quick Keyboard Shortcuts (While Running):
